@@ -1,0 +1,190 @@
+VB.NET code for Delta PLC (DVP, AH, AS series, etc.) communication over Modbus TCP (Ethernet) that supports:
+
+✅ Integer
+✅ Double (Float)
+✅ Boolean (Coil)
+✅ String
+✅ Integer Array
+✅ String Array
+
+All through NModbus4, which works perfectly with Delta PLCs using Ethernet Modbus TCP.
+
+********************************
+Install-Package NModbus4
+
+-----------------------------------
+Imports System.Net.Sockets
+Imports Modbus.Device
+Imports System.Text
+
+Public Class DeltaPLCModbus
+    Private client As TcpClient
+    Private master As ModbusIpMaster
+
+    ' 🔌 Connect to PLC
+    Public Sub Connect(ip As String, port As Integer)
+        client = New TcpClient(ip, port)
+        master = ModbusIpMaster.CreateIp(client)
+        master.Transport.ReadTimeout = 2000
+        master.Transport.WriteTimeout = 2000
+    End Sub
+
+    ' ❌ Disconnect
+    Public Sub Disconnect()
+        If client IsNot Nothing Then client.Close()
+    End Sub
+
+    ' 🟢 Read Boolean (Coil)
+    Public Function ReadCoil(address As UShort) As Boolean
+        Dim coils = master.ReadCoils(address, 1)
+        Return coils(0)
+    End Function
+
+    ' 🔴 Write Boolean (Coil)
+    Public Sub WriteCoil(address As UShort, value As Boolean)
+        master.WriteSingleCoil(address, value)
+    End Sub
+
+    ' 🔢 Read Integer (16-bit)
+    Public Function ReadInteger(address As UShort) As Integer
+        Dim regs = master.ReadHoldingRegisters(address, 1)
+        Return CInt(regs(0))
+    End Function
+
+    ' ✏️ Write Integer
+    Public Sub WriteInteger(address As UShort, value As Integer)
+        master.WriteSingleRegister(address, CUShort(value))
+    End Sub
+
+    ' 🔣 Read Double (Float 32-bit)
+    Public Function ReadDouble(address As UShort) As Double
+        Dim regs = master.ReadHoldingRegisters(address, 2)
+        Dim bytes() As Byte = {
+            CByte(regs(1) And &HFF),
+            CByte((regs(1) >> 8) And &HFF),
+            CByte(regs(0) And &HFF),
+            CByte((regs(0) >> 8) And &HFF)
+        }
+        Return BitConverter.ToSingle(bytes, 0)
+    End Function
+
+    ' ✏️ Write Double (Float 32-bit)
+    Public Sub WriteDouble(address As UShort, value As Double)
+        Dim bytes() As Byte = BitConverter.GetBytes(CSng(value))
+        Dim regs(1) As UShort
+        regs(0) = CUShort(bytes(2) << 8 Or bytes(3))
+        regs(1) = CUShort(bytes(0) << 8 Or bytes(1))
+        master.WriteMultipleRegisters(address, regs)
+    End Sub
+
+    ' 🧾 Read String (ASCII)
+    Public Function ReadString(startAddress As UShort, length As UShort) As String
+        Dim regs = master.ReadHoldingRegisters(startAddress, length)
+        Dim bytes(length * 2 - 1) As Byte
+        For i As Integer = 0 To regs.Length - 1
+            bytes(i * 2) = CByte(regs(i) >> 8)
+            bytes(i * 2 + 1) = CByte(regs(i) And &HFF)
+        Next
+        Return Encoding.ASCII.GetString(bytes).TrimEnd(Chr(0))
+    End Function
+
+    ' ✏️ Write String
+    Public Sub WriteString(startAddress As UShort, text As String)
+        Dim bytes() As Byte = Encoding.ASCII.GetBytes(text.PadRight(20, Chr(0)))
+        Dim regs(bytes.Length \ 2 - 1) As UShort
+        For i As Integer = 0 To regs.Length - 1
+            regs(i) = CUShort(bytes(i * 2) << 8 Or bytes(i * 2 + 1))
+        Next
+        master.WriteMultipleRegisters(startAddress, regs)
+    End Sub
+
+    ' 🔢 Read Integer Array
+    Public Function ReadIntegerArray(startAddress As UShort, count As UShort) As Integer()
+        Dim regs = master.ReadHoldingRegisters(startAddress, count)
+        Return Array.ConvertAll(regs, Function(r) CInt(r))
+    End Function
+
+    ' ✏️ Write Integer Array
+    Public Sub WriteIntegerArray(startAddress As UShort, values As Integer())
+        Dim regs(values.Length - 1) As UShort
+        For i As Integer = 0 To values.Length - 1
+            regs(i) = CUShort(values(i))
+        Next
+        master.WriteMultipleRegisters(startAddress, regs)
+    End Sub
+
+    ' 🧾 Read Array of Strings (Fixed length per string)
+    Public Function ReadStringArray(startAddress As UShort, stringCount As Integer, charsPerString As Integer) As List(Of String)
+        Dim result As New List(Of String)
+        Dim regsPerString As Integer = Math.Ceiling(charsPerString / 2.0)
+
+        For i As Integer = 0 To stringCount - 1
+            Dim addr As UShort = CUShort(startAddress + (i * regsPerString))
+            Dim strVal As String = ReadString(addr, CUShort(regsPerString))
+            result.Add(strVal.TrimEnd(Chr(0)))
+        Next
+
+        Return result
+    End Function
+
+    ' ✏️ Write Array of Strings
+    Public Sub WriteStringArray(startAddress As UShort, values As List(Of String), charsPerString As Integer)
+        Dim regsPerString As Integer = Math.Ceiling(charsPerString / 2.0)
+
+        For i As Integer = 0 To values.Count - 1
+            Dim addr As UShort = CUShort(startAddress + (i * regsPerString))
+            WriteString(addr, values(i))
+        Next
+    End Sub
+End Class
+
+------------------------------------------Example
+Sub Main()
+    Dim plc As New DeltaPLCModbus()
+    plc.Connect("192.168.1.10", 502)  ' IP of Delta PLC
+
+    ' ✅ Boolean (Coil)
+    plc.WriteCoil(0, True)
+    Console.WriteLine("Coil Value: " & plc.ReadCoil(0))
+
+    ' ✅ Integer (D100)
+    plc.WriteInteger(100, 1234)
+    Console.WriteLine("Integer: " & plc.ReadInteger(100))
+
+    ' ✅ Float/Double (2 registers)
+    plc.WriteDouble(200, 56.78)
+    Console.WriteLine("Double: " & plc.ReadDouble(200))
+
+    ' ✅ String
+    plc.WriteString(300, "HELLO DELTA")
+    Console.WriteLine("String: " & plc.ReadString(300, 10))
+
+    ' ✅ Integer Array
+    Dim arr() As Integer = {10, 20, 30, 40, 50}
+    plc.WriteIntegerArray(400, arr)
+    Console.WriteLine("Integer Array: " & String.Join(",", plc.ReadIntegerArray(400, 5)))
+
+    ' ✅ String Array
+    Dim textList As New List(Of String) From {"MOTOR1", "MOTOR2", "MOTOR3"}
+    plc.WriteStringArray(500, textList, 10)
+    Dim result = plc.ReadStringArray(500, 3, 10)
+    Console.WriteLine("String Array: " & String.Join(" | ", result))
+
+    plc.Disconnect()
+End Sub
+
+*************************************************
+Delta PLC Address Mapping (Example)
+PLC Type	Modbus Register		Example			Comment
+D0–D7999	40001–47999		D100 = 40101		16-bit word
+M0–M7999	00001–07999		M10 = Coil 10		Boolean
+Float		2 Registers		D200 (40199–40200)	IEEE 754 float
+String		Consecutive D words	D300–D310		2 chars per word
+****************************************************************************
+Delta DVP-ES2/EX2/SS2 series PLCs
+
+Delta AH / AS PLCs
+
+Works via Ethernet port (502 default)
+*********************************************************
+

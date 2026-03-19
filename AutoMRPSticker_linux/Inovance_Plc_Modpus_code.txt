@@ -1,0 +1,678 @@
+Inovance PLC
+***************************************
+Determine the PLC model (e.g., H3U, H5U, H0U) and what communication protocols it supports (Ethernet, RS-232/485, Modbus, etc.). 
+plc247.com
++1
+
+Get the manual or data sheet for the PLC: it will tell you the memory/register address formats, how to read/write (coils, registers, words) and any special commands.
+
+Choose the protocol: For example, many Inovance PLCs support Modbus TCP/RTU or some Ethernet-based protocol.
+
+Ensure you have network access (IP address/port) or serial port settings (baud, parity, stop bits) to connect.
+-------------------------------------------
+
+Imports System.Net.Sockets
+Imports System.Text
+
+Public Class InovancePlcClient
+    Private _ip As String
+    Private _port As Integer
+    Private _tcp As TcpClient
+    Private _stream As NetworkStream
+
+    Public Sub New(ipAddress As String, port As Integer)
+        _ip = ipAddress
+        _port = port
+    End Sub
+
+    Public Sub Connect()
+        _tcp = New TcpClient(_ip, _port)
+        _stream = _tcp.GetStream()
+    End Sub
+
+    Public Sub Disconnect()
+        If _stream IsNot Nothing Then _stream.Close()
+        If _tcp IsNot Nothing Then _tcp.Close()
+    End Sub
+
+    ''' <summary>Read a single 16-bit register from the PLC</summary>
+    Public Function ReadRegister(registerAddress As Integer) As Integer
+        ' Build Modbus TCP read holding registers request (example)
+        Dim transactionId As Short = 1
+        Dim protocolId As Short = 0
+        Dim length As Short = 6  ' remaining bytes
+        Dim unitId As Byte = 1   ' PLC device address
+        Dim functionCode As Byte = &H3  ' read holding registers
+        Dim addressHi As Byte = CByte((registerAddress >> 8) And &HFF)
+        Dim addressLo As Byte = CByte(registerAddress And &HFF)
+        Dim quantityHi As Byte = 0
+        Dim quantityLo As Byte = 1  ' reading 1 register
+
+        Dim request As New List(Of Byte)
+        request.AddRange(BitConverter.GetBytes(System.Net.IPAddress.HostToNetworkOrder(transactionId)))
+        request.AddRange(BitConverter.GetBytes(System.Net.IPAddress.HostToNetworkOrder(protocolId)))
+        request.AddRange(BitConverter.GetBytes(System.Net.IPAddress.HostToNetworkOrder(length)))
+        request.Add(unitId)
+        request.Add(functionCode)
+        request.Add(addressHi)
+        request.Add(addressLo)
+        request.Add(quantityHi)
+        request.Add(quantityLo)
+
+        Dim reqBytes() As Byte = request.ToArray()
+        _stream.Write(reqBytes, 0, reqBytes.Length)
+
+        Dim respBuffer(255) As Byte
+        Dim bytesRead As Integer = _stream.Read(respBuffer, 0, respBuffer.Length)
+
+        If bytesRead < 9 Then
+            Throw New Exception("Invalid response length")
+        End If
+
+        ' Response: TransactionId(2) + Protocol(2) + Length(2) + UnitId(1) + FunctionCode(1) + ByteCount(1) + Data(2)
+        Dim hi As Byte = respBuffer(9)
+        Dim lo As Byte = respBuffer(10)
+        Return (hi << 8) + lo
+    End Function
+
+    ''' <summary>Write a single 16-bit register in the PLC</summary>
+    Public Sub WriteRegister(registerAddress As Integer, value As Integer)
+        Dim transactionId As Short = 1
+        Dim protocolId As Short = 0
+        Dim length As Short = 6
+        Dim unitId As Byte = 1
+        Dim functionCode As Byte = &H6  ' write single register
+        Dim addressHi As Byte = CByte((registerAddress >> 8) And &HFF)
+        Dim addressLo As Byte = CByte(registerAddress And &HFF)
+        Dim valueHi As Byte = CByte((value >> 8) And &HFF)
+        Dim valueLo As Byte = CByte(value And &HFF)
+
+        Dim request As New List(Of Byte)
+        request.AddRange(BitConverter.GetBytes(System.Net.IPAddress.HostToNetworkOrder(transactionId)))
+        request.AddRange(BitConverter.GetBytes(System.Net.IPAddress.HostToNetworkOrder(protocolId)))
+        request.AddRange(BitConverter.GetBytes(System.Net.IPAddress.HostToNetworkOrder(length)))
+        request.Add(unitId)
+        request.Add(functionCode)
+        request.Add(addressHi)
+        request.Add(addressLo)
+        request.Add(valueHi)
+        request.Add(valueLo)
+
+        Dim reqBytes() As Byte = request.ToArray()
+        _stream.Write(reqBytes, 0, reqBytes.Length)
+
+        ' Optionally read/write acknowledgement if needed
+        Dim respBuffer(255) As Byte = New Byte(255) {}
+        Dim bytesRead As Integer = _stream.Read(respBuffer, 0, respBuffer.Length)
+        ' Could validate function code, address and etc.
+    End Sub
+End Class
+
+
+-------------------------------------
+Dim plcClient As New InovancePlcClient("192.168.0.10", 502)  ' Example IP & port
+Try
+    plcClient.Connect()
+
+    ' Read register 40001 (example)
+    Dim val As Integer = plcClient.ReadRegister(40001)
+    Console.WriteLine("Value at 40001 = " & val)
+
+    ' Write value 123 to register 40002
+    plcClient.WriteRegister(40002, 123)
+
+Finally
+    plcClient.Disconnect()
+End Try
+
+
+******************************************String array IP Address
+Imports System.Net.Sockets
+Imports System.Text
+
+Public Class InovanceModbusClient
+    Private _ip As String
+    Private _port As Integer
+    Private _tcp As TcpClient
+    Private _stream As NetworkStream
+
+    Public Sub New(ip As String, Optional port As Integer = 502)
+        _ip = ip
+        _port = port
+    End Sub
+
+    Public Sub Connect()
+        _tcp = New TcpClient(_ip, _port)
+        _stream = _tcp.GetStream()
+    End Sub
+
+    Public Sub Disconnect()
+        If _stream IsNot Nothing Then _stream.Close()
+        If _tcp IsNot Nothing Then _tcp.Close()
+    End Sub
+
+    '==============================
+    ' READ STRING FROM PLC
+    '==============================
+    Public Function ReadString(registerAddress As Integer, wordCount As Integer) As String
+        Dim data() As Byte = ReadRegisters(registerAddress, wordCount)
+        Return Encoding.ASCII.GetString(data).TrimEnd(Chr(0))
+    End Function
+
+    '==============================
+    ' WRITE STRING TO PLC
+    '==============================
+    Public Sub WriteString(registerAddress As Integer, text As String)
+        Dim data() As Byte = Encoding.ASCII.GetBytes(text)
+        Dim wordCount As Integer = CInt(Math.Ceiling(data.Length / 2.0))
+        Dim padded(data.Length + (wordCount * 2 - data.Length) - 1) As Byte
+        Array.Copy(data, padded, data.Length)
+        WriteRegisters(registerAddress, padded)
+    End Sub
+
+    '==============================
+    ' CORE: READ HOLDING REGISTERS
+    '==============================
+    Private Function ReadRegisters(startAddr As Integer, wordCount As Integer) As Byte()
+        Dim transId As Short = 1
+        Dim protoId As Short = 0
+        Dim length As Short = 6
+        Dim unitId As Byte = 1
+        Dim funcCode As Byte = &H3
+
+        Dim req As New List(Of Byte)
+        req.AddRange(BitConverter.GetBytes(System.Net.IPAddress.HostToNetworkOrder(transId)))
+        req.AddRange(BitConverter.GetBytes(System.Net.IPAddress.HostToNetworkOrder(protoId)))
+        req.AddRange(BitConverter.GetBytes(System.Net.IPAddress.HostToNetworkOrder(length)))
+        req.Add(unitId)
+        req.Add(funcCode)
+        req.Add(CByte((startAddr >> 8) And &HFF))
+        req.Add(CByte(startAddr And &HFF))
+        req.Add(CByte((wordCount >> 8) And &HFF))
+        req.Add(CByte(wordCount And &HFF))
+
+        Dim reqBytes() As Byte = req.ToArray()
+        _stream.Write(reqBytes, 0, reqBytes.Length)
+
+        Dim resp(255) As Byte
+        Dim bytesRead As Integer = _stream.Read(resp, 0, resp.Length)
+
+        ' Byte count is at position 8
+        Dim byteCount As Integer = resp(8)
+        Dim data(byteCount - 1) As Byte
+        Array.Copy(resp, 9, data, 0, byteCount)
+
+        Return data
+    End Function
+
+    '==============================
+    ' CORE: WRITE MULTIPLE REGISTERS
+    '==============================
+    Private Sub WriteRegisters(startAddr As Integer, data() As Byte)
+        Dim wordCount As Integer = data.Length \ 2
+        Dim transId As Short = 1
+        Dim protoId As Short = 0
+        Dim unitId As Byte = 1
+        Dim funcCode As Byte = &H10
+        Dim byteCount As Byte = CByte(wordCount * 2)
+
+        Dim length As Short = CShort(7 + byteCount)
+
+        Dim req As New List(Of Byte)
+        req.AddRange(BitConverter.GetBytes(System.Net.IPAddress.HostToNetworkOrder(transId)))
+        req.AddRange(BitConverter.GetBytes(System.Net.IPAddress.HostToNetworkOrder(protoId)))
+        req.AddRange(BitConverter.GetBytes(System.Net.IPAddress.HostToNetworkOrder(length)))
+        req.Add(unitId)
+        req.Add(funcCode)
+        req.Add(CByte((startAddr >> 8) And &HFF))
+        req.Add(CByte(startAddr And &HFF))
+        req.Add(CByte((wordCount >> 8) And &HFF))
+        req.Add(CByte(wordCount And &HFF))
+        req.Add(byteCount)
+        req.AddRange(data)
+
+        Dim reqBytes() As Byte = req.ToArray()
+        _stream.Write(reqBytes, 0, reqBytes.Length)
+
+        Dim resp(255) As Byte
+        _stream.Read(resp, 0, resp.Length) ' optional response check
+    End Sub
+End Class
+
+---------------------------------------------
+Dim plc As New InovanceModbusClient("192.168.0.10", 502)
+
+Try
+    plc.Connect()
+
+    ' Write string to PLC (e.g., D100–D104)
+    plc.WriteString(100, "HELLO PLC")
+
+    ' Read it back (expect "HELLO PLC")
+    Dim result As String = plc.ReadString(100, 5)
+    Console.WriteLine("Read from PLC: " & result)
+
+Finally
+    plc.Disconnect()
+End Try
+
+******************************************************
+Full VB.NET Code — Modbus RTU Read/Write String -USB Connection
+--------------------------------------------------------
+Imports System.IO.Ports
+Imports System.Text
+
+Public Class InovanceModbusRtuClient
+    Private _port As SerialPort
+
+    Public Sub New(portName As String, Optional baudRate As Integer = 9600, Optional parity As Parity = Parity.None, Optional dataBits As Integer = 8, Optional stopBits As StopBits = StopBits.One)
+        _port = New SerialPort(portName, baudRate, parity, dataBits, stopBits)
+        _port.ReadTimeout = 1000
+        _port.WriteTimeout = 1000
+    End Sub
+
+    Public Sub Connect()
+        If Not _port.IsOpen Then _port.Open()
+    End Sub
+
+    Public Sub Disconnect()
+        If _port.IsOpen Then _port.Close()
+    End Sub
+
+    '========================
+    ' READ STRING FROM PLC
+    '========================
+    Public Function ReadString(deviceId As Byte, startAddr As UShort, wordCount As UShort) As String
+        Dim request As Byte() = BuildRequest(deviceId, &H3, startAddr, wordCount)
+        _port.DiscardInBuffer()
+        _port.Write(request, 0, request.Length)
+
+        Dim buffer(255) As Byte
+        Dim bytesRead As Integer = _port.Read(buffer, 0, buffer.Length)
+
+        If bytesRead < 5 Then Throw New Exception("Invalid response")
+
+        Dim byteCount As Integer = buffer(2)
+        Dim data(byteCount - 1) As Byte
+        Array.Copy(buffer, 3, data, 0, byteCount)
+
+        Return Encoding.ASCII.GetString(data).TrimEnd(Chr(0))
+    End Function
+
+    '========================
+    ' WRITE STRING TO PLC
+    '========================
+    Public Sub WriteString(deviceId As Byte, startAddr As UShort, text As String)
+        Dim data() As Byte = Encoding.ASCII.GetBytes(text)
+        Dim wordCount As UShort = CUShort(Math.Ceiling(data.Length / 2.0))
+        Dim padded(wordCount * 2 - 1) As Byte
+        Array.Copy(data, padded, data.Length)
+
+        Dim functionCode As Byte = &H10
+        Dim req As New List(Of Byte)
+        req.Add(deviceId)
+        req.Add(functionCode)
+        req.Add(CByte((startAddr >> 8) And &HFF))
+        req.Add(CByte(startAddr And &HFF))
+        req.Add(CByte((wordCount >> 8) And &HFF))
+        req.Add(CByte(wordCount And &HFF))
+        req.Add(CByte(padded.Length))
+        req.AddRange(padded)
+
+        ' Add CRC16
+        Dim crc As UShort = CRC16(req.ToArray())
+        req.Add(CByte(crc And &HFF))
+        req.Add(CByte((crc >> 8) And &HFF))
+
+        Dim bytes() As Byte = req.ToArray()
+        _port.DiscardInBuffer()
+        _port.Write(bytes, 0, bytes.Length)
+
+        ' Read response (optional validation)
+        Dim resp(255) As Byte
+        Try
+            _port.Read(resp, 0, resp.Length)
+        Catch
+        End Try
+    End Sub
+
+    '========================
+    ' BUILD READ REQUEST
+    '========================
+    Private Function BuildRequest(deviceId As Byte, functionCode As Byte, startAddr As UShort, quantity As UShort) As Byte()
+        Dim req As New List(Of Byte)
+        req.Add(deviceId)
+        req.Add(functionCode)
+        req.Add(CByte((startAddr >> 8) And &HFF))
+        req.Add(CByte(startAddr And &HFF))
+        req.Add(CByte((quantity >> 8) And &HFF))
+        req.Add(CByte(quantity And &HFF))
+
+        Dim crc As UShort = CRC16(req.ToArray())
+        req.Add(CByte(crc And &HFF))
+        req.Add(CByte((crc >> 8) And &HFF))
+        Return req.ToArray()
+    End Function
+
+    '========================
+    ' CRC16 (Modbus)
+    '========================
+    Private Function CRC16(data() As Byte) As UShort
+        Dim crc As UShort = &HFFFF
+        For Each b As Byte In data
+            crc = CUInt(crc Xor b)
+            For i As Integer = 0 To 7
+                If (crc And 1) <> 0 Then
+                    crc = CUShort((crc >> 1) Xor &HA001)
+                Else
+                    crc = CUShort(crc >> 1)
+                End If
+            Next
+        Next
+        Return crc
+    End Function
+End Class
+
+------------------------------------------------Example usb
+Dim plc As New InovanceModbusRtuClient("COM3", 9600)
+
+Try
+    plc.Connect()
+
+    ' Write a string to registers (e.g., D100–D104)
+    plc.WriteString(1, 100, "HELLO PLC")
+
+    ' Read it back
+    Dim result As String = plc.ReadString(1, 100, 5)
+    Console.WriteLine("Read from PLC: " & result)
+
+Finally
+    plc.Disconnect()
+End Try
+
+***************************************************
+Parameter	Meaning
+deviceId	PLC station number (usually 1)
+startAddr	Starting Modbus register (for D100 → usually 100)
+wordCount	Number of 16-bit registers to read (5 → 10 bytes)
+text		ASCII text to write
+
+***********************************************************************
+***********************************************************************
+***********************************************************************
+Install NModbus4 from NuGet in your VB.NET project:
+-----------------------------------------------
+Install-Package NModbus4
+-----------------------------
+
+Imports System.Net.Sockets
+Imports Modbus.Device
+Imports System.Text
+
+Public Class ModbusInovance
+    Private client As TcpClient
+    Private master As ModbusIpMaster
+
+    Public Sub Connect(ip As String, port As Integer)
+        client = New TcpClient(ip, port)
+        master = ModbusIpMaster.CreateIp(client)
+    End Sub
+
+    Public Sub Disconnect()
+        If client IsNot Nothing Then client.Close()
+    End Sub
+
+
+ Public Function ReadInteger(startAddress As UShort) As Integer
+        Dim values = master.ReadHoldingRegisters(startAddress, 1)
+        Return CInt(values(0))
+    End Function
+
+    Public Sub WriteInteger(startAddress As UShort, value As Integer)
+        master.WriteSingleRegister(startAddress, CUShort(value))
+    End Sub
+     Public Function ReadDouble(startAddress As UShort) As Double
+        Dim regs = master.ReadHoldingRegisters(startAddress, 2)
+        Dim bytes() As Byte = {
+            CByte(regs(1) And &HFF),
+            CByte((regs(1) >> 8) And &HFF),
+            CByte(regs(0) And &HFF),
+            CByte((regs(0) >> 8) And &HFF)
+        }
+        Return BitConverter.ToSingle(bytes, 0)
+    End Function
+
+    Public Sub WriteDouble(startAddress As UShort, value As Double)
+        Dim bytes() As Byte = BitConverter.GetBytes(CSng(value))
+        Dim regs(1) As UShort
+        regs(0) = CUShort(bytes(2) << 8 Or bytes(3))
+        regs(1) = CUShort(bytes(0) << 8 Or bytes(1))
+        master.WriteMultipleRegisters(startAddress, regs)
+    End Sub
+
+Public Function ReadString(startAddress As UShort, length As Integer) As String
+        Dim regs = master.ReadHoldingRegisters(startAddress, CUShort(length))
+        Dim bytes(length * 2 - 1) As Byte
+        For i As Integer = 0 To regs.Length - 1
+            bytes(i * 2) = CByte(regs(i) >> 8)
+            bytes(i * 2 + 1) = CByte(regs(i) And &HFF)
+        Next
+        Return Encoding.ASCII.GetString(bytes).TrimEnd(Chr(0))
+    End Function
+
+    Public Sub WriteString(startAddress As UShort, text As String)
+        Dim bytes() As Byte = Encoding.ASCII.GetBytes(text.PadRight(20, Chr(0)))
+        Dim regs(bytes.Length \ 2 - 1) As UShort
+        For i As Integer = 0 To regs.Length - 1
+            regs(i) = CUShort(bytes(i * 2) << 8 Or bytes(i * 2 + 1))
+        Next
+        master.WriteMultipleRegisters(startAddress, regs)
+    End Sub
+
+ Public Function ReadIntegerArray(startAddress As UShort, count As UShort) As Integer()
+        Dim regs = master.ReadHoldingRegisters(startAddress, count)
+        Return Array.ConvertAll(regs, Function(r) CInt(r))
+    End Function
+End Class
+
+-------------------------example usage
+Sub Main()
+    Dim plc As New ModbusInovance()
+    plc.Connect("192.168.1.10", 502)
+
+    ' Integer
+    Dim value As Integer = plc.ReadInteger(100)
+    Console.WriteLine("Integer: " & value)
+
+    ' Double
+    Dim dbl As Double = plc.ReadDouble(200)
+    Console.WriteLine("Double: " & dbl)
+
+    ' String
+    Dim text As String = plc.ReadString(300, 10)
+    Console.WriteLine("String: " & text)
+
+    ' Integer Array
+    Dim arr = plc.ReadIntegerArray(400, 5)
+    Console.WriteLine("Array: " & String.Join(",", arr))
+
+    plc.Disconnect()
+End Sub
+
+*********************************************
+**************************************
+**********************************************
+Imports System.Net.Sockets
+Imports Modbus.Device
+Imports System.Text
+
+Public Class ModbusInovance
+    Private client As TcpClient
+    Private master As ModbusIpMaster
+
+    ' 🔌 Connect to PLC
+    Public Sub Connect(ip As String, port As Integer)
+        client = New TcpClient(ip, port)
+        master = ModbusIpMaster.CreateIp(client)
+        master.Transport.ReadTimeout = 2000
+        master.Transport.WriteTimeout = 2000
+    End Sub
+
+    ' ❌ Disconnect
+    Public Sub Disconnect()
+        If client IsNot Nothing Then client.Close()
+    End Sub
+
+    ' 🟢 Read Boolean (Coil)
+    Public Function ReadCoil(address As UShort) As Boolean
+        Dim coils = master.ReadCoils(address, 1)
+        Return coils(0)
+    End Function
+
+    ' 🔴 Write Boolean (Coil)
+    Public Sub WriteCoil(address As UShort, value As Boolean)
+        master.WriteSingleCoil(address, value)
+    End Sub
+
+    ' 🔢 Read Integer (1 register)
+    Public Function ReadInteger(address As UShort) As Integer
+        Dim regs = master.ReadHoldingRegisters(address, 1)
+        Return CInt(regs(0))
+    End Function
+
+    ' ✏️ Write Integer
+    Public Sub WriteInteger(address As UShort, value As Integer)
+        master.WriteSingleRegister(address, CUShort(value))
+    End Sub
+
+    ' 🔣 Read Float (2 registers)
+    Public Function ReadDouble(address As UShort) As Double
+        Dim regs = master.ReadHoldingRegisters(address, 2)
+        Dim bytes() As Byte = {
+            CByte(regs(1) And &HFF),
+            CByte((regs(1) >> 8) And &HFF),
+            CByte(regs(0) And &HFF),
+            CByte((regs(0) >> 8) And &HFF)
+        }
+        Return BitConverter.ToSingle(bytes, 0)
+    End Function
+
+    ' ✏️ Write Float (2 registers)
+    Public Sub WriteDouble(address As UShort, value As Double)
+        Dim bytes() As Byte = BitConverter.GetBytes(CSng(value))
+        Dim regs(1) As UShort
+        regs(0) = CUShort(bytes(2) << 8 Or bytes(3))
+        regs(1) = CUShort(bytes(0) << 8 Or bytes(1))
+        master.WriteMultipleRegisters(address, regs)
+    End Sub
+
+    ' 🧾 Read ASCII String
+    Public Function ReadString(startAddress As UShort, length As UShort) As String
+        Dim regs = master.ReadHoldingRegisters(startAddress, length)
+        Dim bytes(length * 2 - 1) As Byte
+        For i As Integer = 0 To regs.Length - 1
+            bytes(i * 2) = CByte(regs(i) >> 8)
+            bytes(i * 2 + 1) = CByte(regs(i) And &HFF)
+        Next
+        Return Encoding.ASCII.GetString(bytes).TrimEnd(Chr(0))
+    End Function
+
+    ' ✏️ Write ASCII String
+    Public Sub WriteString(startAddress As UShort, text As String)
+        Dim bytes() As Byte = Encoding.ASCII.GetBytes(text.PadRight(20, Chr(0)))
+        Dim regs(bytes.Length \ 2 - 1) As UShort
+        For i As Integer = 0 To regs.Length - 1
+            regs(i) = CUShort(bytes(i * 2) << 8 Or bytes(i * 2 + 1))
+        Next
+        master.WriteMultipleRegisters(startAddress, regs)
+    End Sub
+
+    ' 🔢 Read Integer Array
+    Public Function ReadIntegerArray(startAddress As UShort, count As UShort) As Integer()
+        Dim regs = master.ReadHoldingRegisters(startAddress, count)
+        Return Array.ConvertAll(regs, Function(r) CInt(r))
+    End Function
+
+    ' ✏️ Write Integer Array
+    Public Sub WriteIntegerArray(startAddress As UShort, values As Integer())
+        Dim regs(values.Length - 1) As UShort
+        For i As Integer = 0 To values.Length - 1
+            regs(i) = CUShort(values(i))
+        Next
+        master.WriteMultipleRegisters(startAddress, regs)
+    End Sub
+
+    ' 🧾 Read Array of Strings (each string = fixed length)
+    Public Function ReadStringArray(startAddress As UShort, stringCount As Integer, charsPerString As Integer) As List(Of String)
+        Dim result As New List(Of String)
+        Dim regsPerString As Integer = Math.Ceiling(charsPerString / 2.0)
+
+        For i As Integer = 0 To stringCount - 1
+            Dim addr As UShort = CUShort(startAddress + (i * regsPerString))
+            Dim strVal As String = ReadString(addr, CUShort(regsPerString))
+            result.Add(strVal.TrimEnd(Chr(0)))
+        Next
+
+        Return result
+    End Function
+
+    ' ✏️ Write Array of Strings
+    Public Sub WriteStringArray(startAddress As UShort, values As List(Of String), charsPerString As Integer)
+        Dim regsPerString As Integer = Math.Ceiling(charsPerString / 2.0)
+
+        For i As Integer = 0 To values.Count - 1
+            Dim addr As UShort = CUShort(startAddress + (i * regsPerString))
+            WriteString(addr, values(i))
+        Next
+    End Sub
+
+End Class
+
+
+--------------------------example
+Sub Main()
+    Dim plc As New ModbusInovance()
+    plc.Connect("192.168.1.10", 502)
+
+    ' ✅ Read / Write Boolean
+    plc.WriteCoil(0, True)
+    Console.WriteLine("Coil Value: " & plc.ReadCoil(0))
+
+    ' ✅ Read / Write Integer
+    plc.WriteInteger(100, 1234)
+    Console.WriteLine("Integer: " & plc.ReadInteger(100))
+
+    ' ✅ Read / Write Double (Float)
+    plc.WriteDouble(200, 45.67)
+    Console.WriteLine("Double: " & plc.ReadDouble(200))
+
+    ' ✅ Read / Write String
+    plc.WriteString(300, "HELLO PLC")
+    Console.WriteLine("String: " & plc.ReadString(300, 10))
+
+    ' ✅ Read / Write Integer Array
+    Dim intArr() As Integer = {10, 20, 30, 40, 50}
+    plc.WriteIntegerArray(400, intArr)
+    Console.WriteLine("Integer Array: " & String.Join(",", plc.ReadIntegerArray(400, 5)))
+
+    ' ✅ Read / Write String Array
+    Dim names As New List(Of String) From {"LINE1", "LINE2", "LINE3"}
+    plc.WriteStringArray(500, names, 10)
+    Dim readNames = plc.ReadStringArray(500, 3, 10)
+    Console.WriteLine("String Array: " & String.Join(" | ", readNames))
+
+    plc.Disconnect()
+End Sub
+
+************************************************
+Summary Table	
+Data Type	Function Name				Example Address		Registers Used		Description
+Boolean		ReadCoil, WriteCoil			0			1 coil			Digital ON/OFF
+Integer		ReadInteger, WriteInteger		100			1			16-bit word
+Double/Float	ReadDouble, WriteDouble			200			2			32-bit float
+String		ReadString, WriteString			300			N			ASCII text
+Integer Array	ReadIntegerArray, WriteIntegerArray	400			N			Multiple 16-bit integers
+String Array	ReadStringArray, WriteStringArray	500			N × strings		Multi-string memory
+******************************************
+**************************************************
+

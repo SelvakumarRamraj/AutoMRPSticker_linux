@@ -1,0 +1,57 @@
+PART 1️⃣ — FULL SAMPLE PROJECT STRUCTURE
+
+(MVC + Web API + DB + Security + Stock Ledger)
+************************************************
+ERP.Solution
+│
+├── ERP.Database
+│   ├── 01_Master_Tables.sql
+│   ├── 02_Security_Tables.sql
+│   ├── 03_Stock_Ledger.sql
+│   └── 04_Sample_Data.sql
+│
+├── ERP.Api   (ASP.NET Web API – VB.NET)
+│   ├── Controllers
+│   │   ├── AuthController.vb
+│   │   ├── SalesController.vb
+│   │   ├── PurchaseController.vb
+│   │   └── StockController.vb
+│   │
+│   ├── Filters
+│   │   └── ApiMenuAuthorizeAttribute.vb
+│   │
+│   ├── Helpers
+│   │   ├── JwtHelper.vb
+│   │   ├── PasswordHelper.vb
+│   │
+│   ├── Models
+│   │   ├── LoginModel.vb
+│   │   ├── RefreshRequest.vb
+│   │   └── StockPostModel.vb
+│   │
+│   ├── DAL
+│   │   └── SqlHelper.vb
+│   │
+│   ├── App_Start
+│   │   └── WebApiConfig.vb
+│   │
+│   ├── Global.asax
+│   └── Web.config
+│
+├── ERP.Mvc  (ASP.NET MVC – VB.NET)
+│   ├── Controllers
+│   │   ├── AccountController.vb
+│   │   ├── SalesController.vb
+│   │
+│   ├── Views
+│   │   ├── Shared
+│   │   │   └── _Layout.vbhtml
+│   │   └── Sales
+│   │       └── Invoice.vbhtml
+│   │
+│   └── Web.config
+│
+└── ERP.Mobile (conceptual – Flutter / Android)
+    └── api_flow.md
+
+****************************************

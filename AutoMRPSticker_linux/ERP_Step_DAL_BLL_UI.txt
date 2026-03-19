@@ -1,0 +1,982 @@
+ERP FOLDER STRUCTURE
+---------------------------------
+ERP_Solution
+│
+├── ERP.UI          (WinForms / MVC)
+├── ERP.DAL         (Data Access Layer)
+├── ERP.BLL         (Business Logic)
+├── ERP.Entities    (DTO / Models)
+├── ERP.Common      (Common helpers)
+└── ERP.Database    (SQL scripts)
+---------------------------------------
+App.config / Web.config
+-----------------------
+<connectionStrings>
+  <add name="ERPConn"
+       connectionString="Data Source=.;Initial Catalog=ERP_DB;Integrated Security=True"
+       providerName="System.Data.SqlClient"/>
+</connectionStrings>
+
+***********************************************
+SQLHelper (DAL Core)
+ERP.DAL.SqlHelper.vb
+---------------------------------------
+Imports System.Data.SqlClient
+
+Public Class SqlHelper
+
+    Public Shared Function ExecuteDataTable(
+        connStr As String,
+        cmdType As CommandType,
+        cmdText As String,
+        ParamArray params() As SqlParameter) As DataTable
+
+        Using con As New SqlConnection(connStr)
+            Using cmd As New SqlCommand(cmdText, con)
+                cmd.CommandType = cmdType
+                If params IsNot Nothing Then cmd.Parameters.AddRange(params)
+                Using da As New SqlDataAdapter(cmd)
+                    Dim dt As New DataTable
+                    da.Fill(dt)
+                    Return dt
+                End Using
+            End Using
+        End Using
+    End Function
+
+    Public Shared Function ExecuteScalar(
+        connStr As String,
+        cmdType As CommandType,
+        cmdText As String,
+        ParamArray params() As SqlParameter) As Object
+
+        Using con As New SqlConnection(connStr)
+            Using cmd As New SqlCommand(cmdText, con)
+                cmd.CommandType = cmdType
+                If params IsNot Nothing Then cmd.Parameters.AddRange(params)
+                con.Open()
+                Return cmd.ExecuteScalar()
+            End Using
+        End Using
+    End Function
+
+    Public Shared Sub ExecuteNonQuery(
+        connStr As String,
+        cmdType As CommandType,
+        cmdText As String,
+        ParamArray params() As SqlParameter)
+
+        Using con As New SqlConnection(connStr)
+            Using cmd As New SqlCommand(cmdText, con)
+                cmd.CommandType = cmdType
+                If params IsNot Nothing Then cmd.Parameters.AddRange(params)
+                con.Open()
+                cmd.ExecuteNonQuery()
+            End Using
+        End Using
+    End Sub
+
+End Class
+
+************************************************
+Global Session / Login Context
+ERP.Common.SessionManager.vb
+---------------------------------------
+Public Class SessionManager
+    Public Shared UserID As Integer
+    Public Shared UserName As String
+    Public Shared FinancialYear As String
+    Public Shared CompanyID As Integer
+End Class
+************************************************
+Login Flow (INITIAL ENTRY POINT)
+ERP.BLL.LoginBLL.vb
+----------------------------
+Imports ERP.DAL
+Imports System.Data.SqlClient
+
+Public Class LoginBLL
+
+    Public Shared Function ValidateUser(
+        userName As String,
+        password As String) As Boolean
+
+        Dim sql = "SELECT UserID FROM sec.Users 
+                   WHERE UserName=@U AND PasswordHash=@P AND IsActive=1"
+
+        Dim dt = SqlHelper.ExecuteDataTable(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            sql,
+            New SqlParameter("@U", userName),
+            New SqlParameter("@P", password))
+
+        If dt.Rows.Count = 1 Then
+            SessionManager.UserID = dt.Rows(0)("UserID")
+            SessionManager.UserName = userName
+            Return True
+        End If
+        Return False
+    End Function
+
+End Class
+****************************************
+ERP BOOTSTRAP (First Run Setup)
+ERP.Common.ERPInitializer.vb
+-------------------------------------------
+Imports ERP.DAL
+
+Public Class ERPInitializer
+
+    Public Shared Sub Initialize()
+        CreateAdminUser()
+        CreateDefaultCompany()
+        CreateFinancialYear()
+    End Sub
+
+    Private Shared Sub CreateAdminUser()
+        Dim sql = "
+        IF NOT EXISTS (SELECT 1 FROM sec.Users)
+        INSERT INTO sec.Users(UserName,PasswordHash)
+        VALUES('admin','admin')"
+
+        SqlHelper.ExecuteNonQuery(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            sql)
+    End Sub
+
+    Private Shared Sub CreateDefaultCompany()
+        Dim sql = "
+        IF NOT EXISTS (SELECT 1 FROM mst.Company)
+        INSERT INTO mst.Company(CompanyName)
+        VALUES('DEFAULT COMPANY')"
+
+        SqlHelper.ExecuteNonQuery(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            sql)
+    End Sub
+
+    Private Shared Sub CreateFinancialYear()
+        ' Example FY 2025-26
+        SessionManager.FinancialYear = "2025-26"
+    End Sub
+
+End Class
+**************************************
+Main Startup (WinForms Example)
+------------------------------------
+Sub Main()
+    ERPInitializer.Initialize()
+
+    Dim frmLogin As New FrmLogin
+    If frmLogin.ShowDialog() = DialogResult.OK Then
+        Application.Run(New FrmMain)
+    End If
+End Sub
+*************************************
+Error Logging (CRITICAL)
+ERP.Common.Logger.vb
+--------------------------
+Imports System.IO
+
+Public Class Logger
+    Public Shared Sub Log(ex As Exception)
+        File.AppendAllText(
+            "error.log",
+            DateTime.Now & " - " & ex.ToString() & Environment.NewLine)
+    End Sub
+End Class
+
+*************************************LOGIN MODULE
+LOGIN MODULE
+🔹 Database
+-----------
+CREATE TABLE sec.Users (
+    UserID INT IDENTITY PRIMARY KEY,
+    UserName VARCHAR(50) UNIQUE,
+    PasswordHash VARCHAR(200),
+    IsActive BIT DEFAULT 1
+)
+---------------------------------------BLL
+Public Class LoginBLL
+    Public Shared Function Validate(u As String, p As String) As Boolean
+        Dim sql = "SELECT UserID FROM sec.Users 
+                   WHERE UserName=@U AND PasswordHash=@P AND IsActive=1"
+
+        Dim dt = SqlHelper.ExecuteDataTable(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            sql,
+            New SqlParameter("@U", u),
+            New SqlParameter("@P", p))
+
+        If dt.Rows.Count = 1 Then
+            SessionManager.UserID = dt.Rows(0)("UserID")
+            SessionManager.UserName = u
+            Return True
+        End If
+        Return False
+    End Function
+End Class
+------------------------------------UI (Button Click)
+If LoginBLL.Validate(txtUser.Text, txtPwd.Text) Then
+    Me.DialogResult = DialogResult.OK
+Else
+    MessageBox.Show("Invalid Login")
+End If
+--------------------------------------COMPANY MASTER
+COMPANY MASTER
+🔹 Table
+---------------------------------------
+CREATE TABLE mst.Company (
+    CompanyID INT IDENTITY PRIMARY KEY,
+    CompanyName VARCHAR(150),
+    GSTNo VARCHAR(20),
+    IsActive BIT DEFAULT 1
+)
+---------------------------------------BLL
+Public Class CompanyBLL
+    Public Shared Sub Save(name As String, gst As String)
+        Dim sql = "INSERT INTO mst.Company(CompanyName,GSTNo)
+                   VALUES(@N,@G)"
+
+        SqlHelper.ExecuteNonQuery(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            sql,
+            New SqlParameter("@N", name),
+            New SqlParameter("@G", gst))
+    End Sub
+End Class
+-----------------------------------------UI
+CompanyBLL.Save(txtCompany.Text, txtGST.Text)
+MessageBox.Show("Company Saved")
+-------------------------------------------USER MASTER
+🔹 Table
+---------
+CREATE TABLE sec.UserCompany (
+    UserID INT,
+    CompanyID INT,
+    PRIMARY KEY(UserID,CompanyID)
+)
+
+-------------------------------------------BLL
+Public Class UserBLL
+    Public Shared Sub CreateUser(u As String, p As String)
+        Dim sql = "INSERT INTO sec.Users(UserName,PasswordHash)
+                   VALUES(@U,@P)"
+
+        SqlHelper.ExecuteNonQuery(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            sql,
+            New SqlParameter("@U", u),
+            New SqlParameter("@P", p))
+    End Sub
+End Class
+------------------------------------------UI
+UserBLL.CreateUser(txtUser.Text, txtPwd.Text)
+MessageBox.Show("User Created")
+
+**************************************************ITEM MASTER
+🔹 Table
+----------------
+CREATE TABLE mst.Item (
+    ItemID INT IDENTITY PRIMARY KEY,
+    ItemCode VARCHAR(30) UNIQUE,
+    ItemName VARCHAR(200),
+    UOM VARCHAR(10),
+    IsActive BIT DEFAULT 1
+)
+
+---------------------------------------------------BLL
+Public Class ItemBLL
+    Public Shared Sub Save(code As String, name As String, uom As String)
+        Dim sql = "INSERT INTO mst.Item(ItemCode,ItemName,UOM)
+                   VALUES(@C,@N,@U)"
+
+        SqlHelper.ExecuteNonQuery(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            sql,
+            New SqlParameter("@C", code),
+            New SqlParameter("@N", name),
+            New SqlParameter("@U", uom))
+    End Sub
+End Class
+--------------------------------------------------UI
+ItemBLL.Save(txtCode.Text, txtName.Text, txtUOM.Text)
+MessageBox.Show("Item Saved")
+---------------------------------------------------
+***********************************************FINANCIAL YEAR LOCK (VERY IMPORTANT)
+🔹 Table
+-------------------
+CREATE TABLE mst.FinancialYear (
+    FYID INT IDENTITY PRIMARY KEY,
+    FYName VARCHAR(10),
+    FromDate DATE,
+    ToDate DATE,
+    IsLocked BIT DEFAULT 0
+)
+---------------------------------------------BLL
+Public Class FinancialYearBLL
+
+    Public Shared Function IsDateAllowed(docDate As Date) As Boolean
+        Dim sql = "SELECT 1 FROM mst.FinancialYear
+                   WHERE @D BETWEEN FromDate AND ToDate
+                   AND IsLocked=0"
+
+        Dim obj = SqlHelper.ExecuteScalar(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            sql,
+            New SqlParameter("@D", docDate))
+
+        Return obj IsNot Nothing
+    End Function
+
+End Class
+
+---------------------------------------------Usage (Before ANY Transaction)
+If Not FinancialYearBLL.IsDateAllowed(dtDocDate.Value) Then
+    MessageBox.Show("Financial Year Locked")
+    Exit Sub
+End If
+**************************************************
+***************************************************ROLE-BASED MENU SECURITY
+🔹 Tables
+-----------------
+CREATE TABLE sec.Roles (
+    RoleID INT IDENTITY PRIMARY KEY,
+    RoleName VARCHAR(50)
+)
+
+CREATE TABLE sec.UserRoles (
+    UserID INT,
+    RoleID INT,
+    PRIMARY KEY(UserID, RoleID)
+)
+
+CREATE TABLE sec.Menu (
+    MenuID INT IDENTITY PRIMARY KEY,
+    MenuName VARCHAR(100),
+    FormName VARCHAR(100)
+)
+
+CREATE TABLE sec.RoleMenu (
+    RoleID INT,
+    MenuID INT,
+    PRIMARY KEY(RoleID, MenuID)
+)
+
+********************************************BLL – Menu Authorization
+Public Class SecurityBLL
+
+    Public Shared Function GetMenus(userId As Integer) As DataTable
+        Dim sql = "
+        SELECT m.MenuName, m.FormName
+        FROM sec.Menu m
+        JOIN sec.RoleMenu rm ON rm.MenuID = m.MenuID
+        JOIN sec.UserRoles ur ON ur.RoleID = rm.RoleID
+        WHERE ur.UserID = @UID"
+
+        Return SqlHelper.ExecuteDataTable(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            sql,
+            New SqlParameter("@UID", userId))
+    End Function
+
+End Class
+*****************************************UI (Dynamic Menu Load)
+Dim dt = SecurityBLL.GetMenus(SessionManager.UserID)
+For Each r As DataRow In dt.Rows
+    Dim m As New ToolStripMenuItem(r("MenuName").ToString)
+    m.Tag = r("FormName").ToString
+    MenuStrip1.Items.Add(m)
+Next
+
+*******************************************SALES INVOICE + STOCK POSTING
+🔹 Tables
+---------------
+CREATE TABLE trx.SalesH (
+    DocID INT IDENTITY PRIMARY KEY,
+    DocNo VARCHAR(30),
+    DocDate DATE,
+    CustomerID INT,
+    NetAmount DECIMAL(18,2)
+)
+
+CREATE TABLE trx.SalesL (
+    LineID INT IDENTITY PRIMARY KEY,
+    DocID INT,
+    ItemID INT,
+    Qty DECIMAL(18,3),
+    Rate DECIMAL(18,2),
+    LineTotal AS (Qty * Rate)
+)
+
+**************************************BLL – Save Sales
+Public Class SalesBLL
+
+    Public Shared Sub Save(docNo As String, docDate As Date,
+                           custId As Integer, dtLines As DataTable)
+
+        If Not FinancialYearBLL.IsDateAllowed(docDate) Then
+            Throw New Exception("Financial Year Locked")
+        End If
+
+        Dim docId = SqlHelper.ExecuteScalar(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            "INSERT INTO trx.SalesH(DocNo,DocDate,CustomerID,NetAmount)
+             VALUES(@N,@D,@C,0); SELECT SCOPE_IDENTITY()",
+            New SqlParameter("@N", docNo),
+            New SqlParameter("@D", docDate),
+            New SqlParameter("@C", custId))
+
+        For Each r As DataRow In dtLines.Rows
+            ' Save line
+            SqlHelper.ExecuteNonQuery(
+                My.Settings.ERPConn,
+                CommandType.Text,
+                "INSERT INTO trx.SalesL(DocID,ItemID,Qty,Rate)
+                 VALUES(@D,@I,@Q,@R)",
+                New SqlParameter("@D", docId),
+                New SqlParameter("@I", r("ItemID")),
+                New SqlParameter("@Q", r("Qty")),
+                New SqlParameter("@R", r("Rate")))
+
+            ' Stock OUT
+            StockBLL.Post(r("ItemID"), docDate, 0, r("Qty"), r("Rate"), docNo)
+        Next
+
+    End Sub
+
+End Class
+
+****************************************PURCHASE + MOVING AVERAGE PRICE
+🔹 Purchase Tables
+-----------------------------
+CREATE TABLE trx.PurchaseH (
+    DocID INT IDENTITY PRIMARY KEY,
+    DocNo VARCHAR(30),
+    DocDate DATE
+)
+
+CREATE TABLE trx.PurchaseL (
+    LineID INT IDENTITY PRIMARY KEY,
+    DocID INT,
+    ItemID INT,
+    Qty DECIMAL(18,3),
+    Rate DECIMAL(18,2)
+)
+
+***********************************Moving Avg Calculation
+Public Class StockBLL
+
+    Public Shared Sub Post(itemId As Integer, docDate As Date,
+                           inQty As Decimal, outQty As Decimal,
+                           rate As Decimal, refDoc As String)
+
+        ' Current stock
+        Dim dt = SqlHelper.ExecuteDataTable(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            "SELECT SUM(InQty-OutQty) Qty, SUM(TransValue) Val
+             FROM trx.StockLedger WHERE ItemID=@I",
+            New SqlParameter("@I", itemId))
+
+        Dim curQty = If(IsDBNull(dt.Rows(0)("Qty")), 0, dt.Rows(0)("Qty"))
+        Dim curVal = If(IsDBNull(dt.Rows(0)("Val")), 0, dt.Rows(0)("Val"))
+
+        Dim newVal = (curVal + inQty * rate)
+        Dim newQty = (curQty + inQty)
+
+        Dim avgRate = If(newQty = 0, rate, newVal / newQty)
+
+        SqlHelper.ExecuteNonQuery(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            "INSERT INTO trx.StockLedger
+             (ItemID,DocDate,InQty,OutQty,Rate,TransValue,RefDoc)
+             VALUES(@I,@D,@IN,@OUT,@R,@V,@REF)",
+            New SqlParameter("@I", itemId),
+            New SqlParameter("@D", docDate),
+            New SqlParameter("@IN", inQty),
+            New SqlParameter("@OUT", outQty),
+            New SqlParameter("@R", avgRate),
+            New SqlParameter("@V", (inQty - outQty) * avgRate),
+            New SqlParameter("@REF", refDoc))
+    End Sub
+
+End Class
+
+******************************************ACCOUNTS LEDGER + P&L + BALANCE SHEET
+🔹 Chart of Accounts
+---------------------------
+CREATE TABLE acc.Account (
+    AccID INT IDENTITY PRIMARY KEY,
+    AccName VARCHAR(150),
+    AccType VARCHAR(20) -- Asset, Liability, Income, Expense
+)
+
+****************************************Ledger
+CREATE TABLE acc.Ledger (
+    LedgerID INT IDENTITY PRIMARY KEY,
+    AccID INT,
+    DocDate DATE,
+    Dr DECIMAL(18,2),
+    Cr DECIMAL(18,2),
+    RefDoc VARCHAR(30)
+)
+
+*****************************************Posting Entry
+Public Class AccountsBLL
+
+    Public Shared Sub Post(accId As Integer, docDate As Date,
+                           dr As Decimal, cr As Decimal, ref As String)
+
+        If Not FinancialYearBLL.IsDateAllowed(docDate) Then
+            Throw New Exception("Financial Year Locked")
+        End If
+
+        SqlHelper.ExecuteNonQuery(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            "INSERT INTO acc.Ledger(AccID,DocDate,Dr,Cr,RefDoc)
+             VALUES(@A,@D,@DR,@CR,@R)",
+            New SqlParameter("@A", accId),
+            New SqlParameter("@D", docDate),
+            New SqlParameter("@DR", dr),
+            New SqlParameter("@CR", cr),
+            New SqlParameter("@R", ref))
+    End Sub
+
+End Class
+
+*****************************************Profit & Loss View
+CREATE VIEW rpt.vw_PnL AS
+SELECT a.AccName,
+       SUM(l.Cr - l.Dr) Amount
+FROM acc.Ledger l
+JOIN acc.Account a ON a.AccID = l.AccID
+WHERE a.AccType IN ('Income','Expense')
+GROUP BY a.AccName
+****************************************************
+****************************************************GST + TDS MODULE (INDIA ERP STANDARD)
+🔹 GST MASTER TABLES
+-------------------------------
+CREATE TABLE acc.GSTSlab (
+    GSTID INT IDENTITY PRIMARY KEY,
+    GSTName VARCHAR(50),
+    CGST DECIMAL(5,2),
+    SGST DECIMAL(5,2),
+    IGST DECIMAL(5,2)
+)
+
+CREATE TABLE acc.TDSSlab (
+    TDSID INT IDENTITY PRIMARY KEY,
+    TDSName VARCHAR(50),
+    TDSRate DECIMAL(5,2),
+    TDSAccountID INT
+)
+
+*******************************************SALES GST POSTING (BLL)
+Public Class GSTBLL
+
+    Public Shared Sub PostSalesGST(docDate As Date, taxable As Decimal, gstId As Integer, ref As String)
+
+        Dim dt = SqlHelper.ExecuteDataTable(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            "SELECT * FROM acc.GSTSlab WHERE GSTID=@ID",
+            New SqlParameter("@ID", gstId))
+
+        Dim cgst = taxable * dt.Rows(0)("CGST") / 100
+        Dim sgst = taxable * dt.Rows(0)("SGST") / 100
+        Dim igst = taxable * dt.Rows(0)("IGST") / 100
+
+        AccountsBLL.Post(201, docDate, 0, cgst, ref) ' CGST Output
+        AccountsBLL.Post(202, docDate, 0, sgst, ref)
+        AccountsBLL.Post(203, docDate, 0, igst, ref)
+
+    End Sub
+End Class
+
+********************************************TDS POSTING (PURCHASE)
+Public Class TDSBLL
+
+    Public Shared Sub PostTDS(docDate As Date, amount As Decimal, tdsId As Integer, ref As String)
+
+        Dim rate = SqlHelper.ExecuteScalar(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            "SELECT TDSRate FROM acc.TDSSlab WHERE TDSID=@I",
+            New SqlParameter("@I", tdsId))
+
+        Dim tdsAmt = amount * rate / 100
+
+        AccountsBLL.Post(301, docDate, 0, tdsAmt, ref) ' TDS Payable
+        AccountsBLL.Post(401, docDate, tdsAmt, 0, ref) ' Expense Reduction
+
+    End Sub
+End Class
+
+************************************************INVOICE PRINTING + BARCODE (WINFORMS)
+🔹 PrintDocument (Standard ERP)
+---------------------------------------
+Private Sub PrintDocument1_PrintPage(sender As Object, e As Printing.PrintPageEventArgs)
+
+    Dim g = e.Graphics
+    Dim y As Integer = 20
+
+    g.DrawString("TAX INVOICE", New Font("Arial", 12, FontStyle.Bold), Brushes.Black, 250, y)
+    y += 30
+
+    g.DrawString("Invoice No: " & txtDocNo.Text, Font, Brushes.Black, 20, y)
+    y += 20
+
+    For Each r As DataGridViewRow In dgv.Rows
+        g.DrawString(r.Cells("ItemName").Value, Font, Brushes.Black, 20, y)
+        g.DrawString(r.Cells("Qty").Value, Font, Brushes.Black, 300, y)
+        g.DrawString(r.Cells("Amount").Value, Font, Brushes.Black, 400, y)
+        y += 18
+    Next
+End Sub
+***********************************************BARCODE (CODE128)
+Imports ZXing
+
+Public Function GenerateBarcode(text As String) As Image
+    Dim writer As New BarcodeWriter With {
+        .Format = BarcodeFormat.CODE_128
+    }
+    Return writer.Write(text)
+End Function
+**************************************************
+PictureBox1.Image = GenerateBarcode(txtDocNo.Text)
+
+************************************************BRANCH / WAREHOUSE STOCK
+🔹 Tables
+------------------------------
+CREATE TABLE mst.Branch (
+    BranchID INT IDENTITY PRIMARY KEY,
+    BranchName VARCHAR(100)
+)
+
+ALTER TABLE trx.StockLedger ADD BranchID INT
+
+********************************************
+Stock Posting (Branch Wise)
+-----------------------------------
+Public Shared Sub Post(itemId As Integer, branchId As Integer,
+                       docDate As Date, inQty As Decimal, outQty As Decimal,
+                       rate As Decimal, ref As String)
+
+    SqlHelper.ExecuteNonQuery(
+        My.Settings.ERPConn,
+        CommandType.Text,
+        "INSERT INTO trx.StockLedger
+         (ItemID,BranchID,DocDate,InQty,OutQty,Rate,TransValue,RefDoc)
+         VALUES(@I,@B,@D,@IN,@OUT,@R,@V,@REF)",
+        New SqlParameter("@I", itemId),
+        New SqlParameter("@B", branchId),
+        New SqlParameter("@D", docDate),
+        New SqlParameter("@IN", inQty),
+        New SqlParameter("@OUT", outQty),
+        New SqlParameter("@R", rate),
+        New SqlParameter("@V", (inQty - outQty) * rate),
+        New SqlParameter("@REF", ref))
+End Sub
+
+******************************************YEAR-END CLOSING AUTOMATION (CRITICAL)
+🔹 Year Close Procedure
+--------------------------------
+CREATE PROCEDURE acc.usp_YearEndClose
+@OldFY INT,
+@NewFY INT
+AS
+BEGIN
+    -- Transfer balances
+    INSERT INTO acc.Ledger (AccID, DocDate, Dr, Cr, RefDoc)
+    SELECT AccID, GETDATE(),
+           CASE WHEN SUM(Dr-Cr) > 0 THEN SUM(Dr-Cr) ELSE 0 END,
+           CASE WHEN SUM(Dr-Cr) < 0 THEN ABS(SUM(Dr-Cr)) ELSE 0 END,
+           'FY OPENING'
+    FROM acc.Ledger
+    GROUP BY AccID
+
+    UPDATE mst.FinancialYear SET IsLocked=1 WHERE FYID=@OldFY
+END
+**********************************************VB.NET Call
+
+
+SqlHelper.ExecuteNonQuery(
+    My.Settings.ERPConn,
+    CommandType.StoredProcedure,
+    "acc.usp_YearEndClose",
+    New SqlParameter("@OldFY", 1),
+    New SqlParameter("@NewFY", 2))
+
+*************************************************FINAL ERP ZIP (WINFORMS STRUCTURE)
+
+ERP_Final
+│
+├── UI
+│   ├── FrmLogin
+│   ├── FrmMain
+│   ├── FrmSales
+│   ├── FrmPurchase
+│   ├── FrmAccounts
+│   ├── FrmGST
+│   ├── FrmReports
+│
+├── BLL
+│   ├── SalesBLL
+│   ├── PurchaseBLL
+│   ├── StockBLL
+│   ├── AccountsBLL
+│   ├── GSTBLL
+│   ├── TDSBLL
+│
+├── DAL
+│   └── SqlHelper.vb
+│
+├── Common
+│   ├── SessionManager
+│   ├── Logger
+│
+└── Database
+    ├── ERP_SCHEMA.sql
+    ├── MASTER_DATA.sql
+
+*****************************************COMPLETE SQL SCHEMA FILE (ERP_SCHEMA.sql)
+CREATE DATABASE ERP_DB
+GO
+USE ERP_DB
+GO
+
+/* ===================== SCHEMAS ===================== */
+CREATE SCHEMA mst
+CREATE SCHEMA trx
+CREATE SCHEMA acc
+CREATE SCHEMA sec
+CREATE SCHEMA rpt
+GO
+
+/* ===================== MASTER ===================== */
+CREATE TABLE mst.Company (
+    CompanyID INT IDENTITY PRIMARY KEY,
+    CompanyName VARCHAR(150),
+    GSTNo VARCHAR(20)
+)
+
+CREATE TABLE mst.Branch (
+    BranchID INT IDENTITY PRIMARY KEY,
+    BranchName VARCHAR(100)
+)
+
+CREATE TABLE mst.Item (
+    ItemID INT IDENTITY PRIMARY KEY,
+    ItemCode VARCHAR(30) UNIQUE,
+    ItemName VARCHAR(200),
+    UOM VARCHAR(10),
+    GSTID INT
+)
+
+CREATE TABLE mst.FinancialYear (
+    FYID INT IDENTITY PRIMARY KEY,
+    FYName VARCHAR(10),
+    FromDate DATE,
+    ToDate DATE,
+    IsLocked BIT DEFAULT 0
+)
+
+/* ===================== SECURITY ===================== */
+CREATE TABLE sec.Users (
+    UserID INT IDENTITY PRIMARY KEY,
+    UserName VARCHAR(50),
+    PasswordHash VARCHAR(100),
+    IsActive BIT DEFAULT 1
+)
+
+CREATE TABLE sec.Roles (
+    RoleID INT IDENTITY PRIMARY KEY,
+    RoleName VARCHAR(50)
+)
+
+CREATE TABLE sec.UserRoles (
+    UserID INT,
+    RoleID INT
+)
+
+CREATE TABLE sec.Menu (
+    MenuID INT IDENTITY PRIMARY KEY,
+    MenuName VARCHAR(100),
+    FormName VARCHAR(100)
+)
+
+CREATE TABLE sec.RoleMenu (
+    RoleID INT,
+    MenuID INT
+)
+
+/* ===================== STOCK ===================== */
+CREATE TABLE trx.StockLedger (
+    LedgerID INT IDENTITY PRIMARY KEY,
+    ItemID INT,
+    BranchID INT,
+    DocDate DATE,
+    InQty DECIMAL(18,3),
+    OutQty DECIMAL(18,3),
+    Rate DECIMAL(18,2),
+    TransValue DECIMAL(18,2),
+    RefDoc VARCHAR(30)
+)
+
+/* ===================== SALES ===================== */
+CREATE TABLE trx.SalesH (
+    DocID INT IDENTITY PRIMARY KEY,
+    DocNo VARCHAR(30),
+    DocDate DATE,
+    CustomerName VARCHAR(200),
+    NetAmount DECIMAL(18,2)
+)
+
+CREATE TABLE trx.SalesL (
+    LineID INT IDENTITY PRIMARY KEY,
+    DocID INT,
+    ItemID INT,
+    Qty DECIMAL(18,3),
+    Rate DECIMAL(18,2)
+)
+
+/* ===================== PURCHASE ===================== */
+CREATE TABLE trx.PurchaseH (
+    DocID INT IDENTITY PRIMARY KEY,
+    DocNo VARCHAR(30),
+    DocDate DATE,
+    VendorName VARCHAR(200)
+)
+
+CREATE TABLE trx.PurchaseL (
+    LineID INT IDENTITY PRIMARY KEY,
+    DocID INT,
+    ItemID INT,
+    Qty DECIMAL(18,3),
+    Rate DECIMAL(18,2)
+)
+
+/* ===================== ACCOUNTS ===================== */
+CREATE TABLE acc.Account (
+    AccID INT IDENTITY PRIMARY KEY,
+    AccName VARCHAR(150),
+    AccType VARCHAR(20)
+)
+
+CREATE TABLE acc.Ledger (
+    LedgerID INT IDENTITY PRIMARY KEY,
+    AccID INT,
+    DocDate DATE,
+    Dr DECIMAL(18,2),
+    Cr DECIMAL(18,2),
+    RefDoc VARCHAR(30)
+)
+
+/* ===================== GST & TDS ===================== */
+CREATE TABLE acc.GSTSlab (
+    GSTID INT IDENTITY PRIMARY KEY,
+    CGST DECIMAL(5,2),
+    SGST DECIMAL(5,2),
+    IGST DECIMAL(5,2)
+)
+
+CREATE TABLE acc.TDSSlab (
+    TDSID INT IDENTITY PRIMARY KEY,
+    TDSRate DECIMAL(5,2),
+    TDSAccountID INT
+)
+GO
+
+**********************************************
+**********************************************FULL WINFORMS SCREENS (CORE CODE)
+If LoginBLL.Validate(txtUser.Text, txtPwd.Text) Then
+    FrmMain.Show()
+    Me.Hide()
+End If
+
+*******************************************Dynamic Menu (Role-Based)
+Dim dt = SecurityBLL.GetMenus(SessionManager.UserID)
+For Each r As DataRow In dt.Rows
+    Dim m As New ToolStripMenuItem(r("MenuName").ToString)
+    AddHandler m.Click, AddressOf OpenForm
+    m.Tag = r("FormName").ToString
+    MenuStrip1.Items.Add(m)
+Next
+******************************************Sales Invoice Save
+SalesBLL.Save(txtDocNo.Text, dtDate.Value, dgvLines.DataSource)
+MessageBox.Show("Invoice Saved")
+*******************************************Purchase Save (Avg Price)
+PurchaseBLL.Save(txtDocNo.Text, dtDate.Value, dgvLines.DataSource)
+******************************************Year-End Close
+AccountsBLL.YearEndClose(oldFY, newFY)
+MessageBox.Show("Year Closed Successfully")
+*******************************************
+*******************************************GST RETURNS (INDIA COMPLIANT)
+🔹 GSTR-1 (Sales Summary)
+--------------------------
+SELECT DocDate, SUM(NetAmount) TaxableValue
+FROM trx.SalesH
+GROUP BY DocDate
+****************************GSTR-3B
+SELECT 
+    SUM(NetAmount) Taxable,
+    SUM(NetAmount * 0.09) CGST,
+    SUM(NetAmount * 0.09) SGST
+FROM trx.SalesH
+
+*****************************TDS – 26Q
+SELECT 
+    RefDoc,
+    SUM(Cr) TDSAmount
+FROM acc.Ledger
+WHERE AccID = 301
+GROUP BY RefDoc
+******************************
+PRODUCTION CHECKLIST & DEPLOYMENT
+🔹 Before Go-Live
+
+✔ Financial year locked
+✔ Opening balances verified
+✔ Stock quantity = stock value
+✔ GST ledgers reconciled
+✔ User roles tested
+
+🔹 Deployment
+
+✔ SQL Server Express / Std
+✔ .NET Framework 4
+✔ ClickOnce / Setup.exe
+✔ Daily DB backup job
+
+🔹 Audit Safety
+
+✔ No delete (use cancel / reverse)
+✔ Ledger-only accounting
+✔ Date locked by FY
+**********************************************barcode print in vb.net
+Dim cmd As String = File.ReadAllText("tsc_label.txt")
+File.WriteAllText("\\TSC_PRINTER\USB001", cmd)
+***********************************************
+
+
+
+
+
+
+
+
+
+

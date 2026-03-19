@@ -1,0 +1,1217 @@
+CREATE DATABASE MiniERP;
+GO
+USE MiniERP;
+
+
+
+
+CREATE TABLE Roles (
+  RoleId INT IDENTITY PRIMARY KEY,
+  RoleName NVARCHAR(50),
+  IsSuperAdmin nvarchar(1) 'Y'
+);
+
+
+CREATE TABLE Menus (
+    MenuCode NVARCHAR(50) PRIMARY KEY,
+    MenuName NVARCHAR(100),
+    Url NVARCHAR(200)
+);
+
+
+CREATE TABLE RoleMenus (
+    RoleId INT NOT NULL,
+    MenuCode NVARCHAR(50) NOT NULL,
+    CONSTRAINT PK_RoleMenus PRIMARY KEY (RoleId, MenuCode),
+    CONSTRAINT FK_RoleMenus_Roles FOREIGN KEY (RoleId) REFERENCES Roles(RoleId),
+    CONSTRAINT FK_RoleMenus_Menus FOREIGN KEY (MenuCode) REFERENCES Menus(MenuCode)
+);
+CREATE INDEX IDX_RoleMenus_RoleId ON RoleMenus(RoleId);
+CREATE INDEX IDX_RoleMenus_MenuCode ON RoleMenus(MenuCode);
+
+CREATE TABLE Users (
+    UserId INT IDENTITY PRIMARY KEY,
+    UserName NVARCHAR(50) NOT NULL,
+    Password NVARCHAR(50) NOT NULL,
+    RoleId INT NOT NULL,
+    CONSTRAINT FK_Users_Roles FOREIGN KEY (RoleId) REFERENCES Roles(RoleId)
+);
+CREATE INDEX IDX_Users_RoleId ON Users(RoleId);
+
+CREATE TABLE PostingPeriod (
+  PeriodId INT IDENTITY PRIMARY KEY,
+  PeriodCode nvarchar(20),
+  FromDate DATE NOT NULL,
+  ToDate DATE NOT NULL,
+  IsOpen BIT DEFAULT 1
+);
+
+CREATE TABLE DocSeries (
+  seriesid int identity Primary Key, 
+  SeriesName NVARCHAR(50),
+  Prefix NVARCHAR(10),
+  PeriodId INT,
+  Periodcode nvarchar(20),
+  LastNo INT DEFAULT 0,
+  Lock nvarchar(1) Default 'N'
+);
+
+CREATE TABLE Warehouse (
+    WhId INT IDENTITY PRIMARY KEY,
+    Whscode nvarchar(30) Not Null,
+    WhName NVARCHAR(50) NOT NULL
+);
+
+CREATE TABLE Stock (
+    ItemId INT NOT NULL,
+    WhId INT NOT NULL,
+    Qty DECIMAL(18,2) DEFAULT 0,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    CONSTRAINT PK_Stock PRIMARY KEY(ItemId, WhId),
+    CONSTRAINT FK_Stock_Item FOREIGN KEY (ItemId) REFERENCES Item(ItemId),
+    CONSTRAINT FK_Stock_Warehouse FOREIGN KEY (WhId) REFERENCES Warehouse(WhId)
+);
+
+
+
+CREATE TABLE StockLedger (
+    LedgerId INT IDENTITY PRIMARY KEY,
+    ItemId INT NOT NULL,
+    WhId INT NOT NULL,
+    ObjType nvarchar(20),
+    DocType NVARCHAR(20),
+    DocNo NVARCHAR(30),
+    Docentry int, 
+    DocDate DATE,
+    InQty DECIMAL(18,2) DEFAULT 0,
+    OutQty DECIMAL(18,2) DEFAULT 0,
+    Price decimal(10,2),
+    Avgprice Decimal(10,2),
+    StockValue decimal(18,2),    
+    CONSTRAINT FK_StockLedger_Item FOREIGN KEY (ItemId) REFERENCES Item(ItemId),
+    CONSTRAINT FK_StockLedger_Warehouse FOREIGN KEY (WhId) REFERENCES Warehouse(WhId)
+    
+);
+CREATE INDEX IDX_StockLedger_ItemId ON StockLedger(ItemId);
+CREATE INDEX IDX_StockLedger_WhId ON StockLedger(WhId);
+CREATE INDEX IDX_StockLedger_DocDate ON StockLedger(DocDate);
+
+
+CREATE TABLE ItemMaster (
+  ItemId INT IDENTITY PRIMARY KEY,
+  Itemcode nvarchar(50),
+  GroupId INT,
+  InvntItem nvarchar(1) DEFAULT 'Y',
+  ItemName NVARCHAR(100),
+  UOM NVARCHAR(20),
+  Style nvarchar(20),
+  Size nvarchar(20),
+  Rate DECIMAL(10,2),
+  LastpurRate decimal(10,2)
+  LastPurcDate Datetime,
+  Taxcode nvarchar(20),
+  TaxRate decimal(10,2),
+  SubGroup1 nvarchar(100), 
+  SubGroup2 nvarchar(100),
+  SubGroup3 nvarchar(100),
+  SubGroup4 nvarchar(100),
+  SubGroup5 nvarchar(100),
+  BatchNum nvarchar(50),
+  DefltWhs nvarchar(50),
+  Barcode nvarchar(30),
+  Active nvarchar(1) DEFAULT 'Y',
+  CreatedDate DateTime,
+  UpdatedDate DateTime,
+);
+
+
+
+
+CREATE TABLE ItemGroupMaster(
+ GroupId int IDENTITY PRIMARY KEY,
+ ItemGroupName nvarchar(50)
+)
+
+Create Table PriceListHd(
+ PriceListid  int identity primary key,
+ ListName nvarchar(50),
+ StateCode int
+ )  
+
+CREATE TABLE PriceListDet (
+    PriceId INT IDENTITY PRIMARY KEY,
+    Pricelist  int not null,
+    ItemId INT NOT NULL,
+    Itemcode nvarchar(50) NOT NULL,
+    StateCode NVARCHAR(10),        -- e.g. TN, KA, MH
+    StateName NVARCHAR(50),
+    Price DECIMAL(10,2),
+    EffectiveFrom DATE,
+    EffectiveTo DATE NULL,
+    Active NVARCHAR(1) DEFAULT 'Y',
+    CreatedDate DATETIME DEFAULT GETDATE(),
+
+    CONSTRAINT FK_PriceListDet_ItemMaster
+        FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+
+
+CREATE TABLE ItemMaster2 (
+    ItemVarId INT IDENTITY PRIMARY KEY,
+    BrandName as nvarchar(100),
+    ItemId INT NOT NULL,
+    ItemName NVARCHAR(100),   -- Different invoice names
+    Price DECIMAL(10,2),
+    Active NVARCHAR(1) DEFAULT 'Y',
+    CONSTRAINT FK_ItemSalesVariant_Item
+        FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+CREATE TABLE GST_TaxMaster (
+    TaxId INT IDENTITY PRIMARY KEY,
+    TaxCode nvarchar(30),
+    TaxName NVARCHAR(50),      -- GST 5%, 12%, 18%, 28%
+    Rate DECIMAL(5,2),         -- Total GST %
+    CGST DECIMAL(5,2),
+    SGST DECIMAL(5,2),
+    IGST DECIMAL(5,2),
+    IsActive nvarchar(1) DEFAULT 'Y'
+);
+
+CREATE TABLE GST_Accounts (  ' account mapping
+    TaxId INT,
+    InputCGST INT,
+    InputSGST INT,
+    InputIGST INT,
+    OutputCGST INT,
+    OutputSGST INT,
+    OutputIGST INT
+);
+
+CREATE TABLE TDS_Master (
+    TDSId INT IDENTITY PRIMARY KEY,
+    Section NVARCHAR(10),      -- 194C, 194J etc
+    Rate DECIMAL(5,2),
+    AccountId INT              -- TDS Payable Account
+);
+
+
+
+
+CREATE TABLE PartMaster(
+  PartyId INT IDENTITY PRIMARY KEY,
+  Cardcode nvarchar(50) NOT NULL,
+  CardName Nvarchar(100) NOT NULL,
+  CardFName Nvarchar(100) NOT NULL,
+  CardType nvarchar(1) NOT NULL,
+  GroupCode int,
+  EMail nvarchar(100) Null,
+  Phone1 nvarchar(50) Null,
+  Phone2 nvarchar(50) Null,
+  GSTIN nvarchar(50) NULL,
+  PANNO nvarchar(50) Null,
+  SalePriceListid int Null,
+  MRPPriceListid int Null,
+  Active nvarchar(1) DEFAULT 'Y'
+)
+
+CREATE TABLE PartyAddress(
+  PAddID INT IDENTITY PIMARY KEY,
+  Partyid int Not Null,
+  Cardcode nvarchar(50) NOT NULL,
+  Building Nvarchar(100) NULL,
+  Block Nvarchar(100) Null,
+  Street1 Nvarchar(100) Null,
+  Street2 Nvarchar(100) Null,
+  City nvarchar(100) Not Null,
+  ZipCode Nvarchar(25) Null,
+  District Nvarchar(100) Null,
+  StateShort Nvarchar(5) Null,
+  Stateid int Null,
+  Country nvarchar(50),
+  Adrestype nvarchar(25) Not Null,
+  GSTIN nvarchar(50) Not Null,
+  PANNo nvarchar(50) Not Null,
+ CONSTRAINT FK_PartyAddress FOREIGN KEY (PartyId) REFERENCES PartyMaster(PartyId)
+)
+
+CREATE TABLE PartyGroupMaster(
+  GroupCode int INDENTITY PRIMARY KEY,
+  GroupName nvarchar(50),
+)  
+   
+
+
+CREATE TABLE POHd (
+    Docentry INT IDENTITY PRIMARY KEY,
+    Docnum int,
+    PeriodId int,
+    Docno NVARCHAR(50) NOT NULL UNIQUE,
+    DocDate DATETIME NOT NULL,
+    DOCDUEDATE DATETIME NOT NULL,
+    ObjType  nvarchar(20),
+    Doctype  nvarchar(1) DEFAULT 'I',
+    PartyId INT NOT NULL,
+    Cardcode nvarchar(20),
+    Cardname nvarchar(100), 
+    Total DECIMAL(18,2) DEFAULT 0,
+    FreightAmt decimal(11,2) DEFAULT 0,
+    Discount decimal(18,2) DEFAULT 0,
+    TDSAmount DECIMAL(18,2) DEFAULT 0,
+    TaxAmount Decimal(18,2) DEFAULT 0,
+    RoundOff decimal(10,2) DEFAULT 0, 
+    DocTotal decimal(18,2) DEFAULT 0, 
+    Cancelled nvarchar(1) DEFAULT 'N',
+    ShipToCode  nvarchar(50),
+    Reference  nvarchar(150),
+    JrnlEntry int,
+    userid as int,
+    CreatedDate datetime,
+    UpdatedDate datetime,
+    CONSTRAINT FK_POHd_Party FOREIGN KEY (PartyId) REFERENCES PartyMaster(PartyId)
+);
+
+CREATE TABLE PODet (
+    DocId as INT IDENTITY PRIMARY KEY,
+    LineNum as int,
+    Docentry INT NOT NULL,
+    ItemId INT NOT NULL,
+    Itemcode nvarchar(50),
+    Itemname nvarchar(100),
+    Qty DECIMAL(18,2) DEFAULT 0,
+    Rate DECIMAL(18,2) DEFAULT 0,
+    Amount AS (Qty * Rate) PERSISTED,
+    Discper Decimal(10,2),
+    Discount Decimal(18,2),
+    Taxable Decimal(18,2),
+    TaxId int,
+    Taxcode nvarchar(30),
+    Taxrate decimal(10,2),
+    TaxAmount Decimal(18,2),
+    LineTotal Decimal(18,2),
+    CGSTRate  Decimal(18,2),
+    SGSTRate  Decimal(18,2),
+    IGSTRate  Decimal(18,2),
+    CGST  Decimal(18,2),
+    SGST  Decimal(18,2),
+    IGST  Decimal(18,2),
+    BaseType nvarchar(20),
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    WhId INT NOT NULL,
+    OpenQty DECIMAL(18,2)
+    Stockvalue as (Qty * AvgPrice) PERSISTED,
+    AcctCode nvarchar(25),
+    CONSTRAINT PK_PODet PRIMARY KEY (DocId, ItemId),
+    CONSTRAINT FK_PODet_POHd FOREIGN KEY (Docentry) REFERENCES POHd(Docentry),
+    CONSTRAINT FK_PODet_Item FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+CREATE INDEX IDX_PODet_Docentry ON PODet(Docentry);
+CREATE INDEX IDX_PODet_ItemId ON PODet(ItemId);
+
+CREATE TABLE POBatchDet (
+    BatchId INT IDENTITY PRIMARY KEY,
+    DocId INT NOT NULL,      -- FK → PODet.DocId
+    ItemId INT NOT NULL,
+    WhId INT NOT NULL,
+
+    BatchNum NVARCHAR(50),
+    MfgDate DATE,
+    ExpDate DATE,
+
+    Qty DECIMAL(18,2),
+    Rate DECIMAL(18,2),
+
+    StockValue AS (Qty * Rate) PERSISTED,
+
+    CreatedDate DATETIME DEFAULT GETDATE(),
+
+    CONSTRAINT FK_POBatch_PODet 
+        FOREIGN KEY (PODocId) REFERENCES PODet(DocId),
+
+    CONSTRAINT FK_POBatch_Item 
+        FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+
+
+CREATE TABLE GRPOHd (
+    Docentry INT IDENTITY PRIMARY KEY,
+    Docnum int,
+    PeriodId int,
+    Docno NVARCHAR(50) NOT NULL UNIQUE,
+    DocDate DATETIME NOT NULL,
+    DOCDUEDATE DATETIME NOT NULL,
+    ObjType as nvarchar(20),
+    Doctype as nvarchar(1) DEFAULT 'I',
+    PartyId INT NOT NULL,
+    Cardcode nvarchar(20),
+    Cardname nvarchar(100), 
+    Total DECIMAL(18,2) DEFAULT 0,
+    FreightAmt decimal(11,2) DEFAULT 0,
+    Discount decimal(18,2) DEFAULT 0,
+    TDSAmount DECIMAL(18,2) DEFAULT 0,
+    TaxAmount Decimal(18,2) DEFAULT 0,
+    RoundOff decimal(10,2) DEFAULT 0, 
+    DocTotal decimal(18,2) DEFAULT 0, 
+    Cancelled nvarchar(1) DEFAULT 'N',
+    ShipToCode  nvarchar(50),
+    Reference  nvarchar(150),
+    JrnlEntry int,
+    CONSTRAINT FK_GRPOHd_Party FOREIGN KEY (PartyId) REFERENCES PartyMaster(PartyId)
+);
+
+CREATE TABLE GRPODet (
+    DocId as INT IDENTITY PRIMARY KEY,
+    LineNum as int,
+    Docentry INT NOT NULL,
+    ItemId INT NOT NULL,
+    Itemcode nvarchar(50),
+    Itemname nvarchar(100),
+    Qty DECIMAL(18,2) DEFAULT 0,
+    Rate DECIMAL(18,2) DEFAULT 0,
+    Amount AS (Qty * Rate) PERSISTED,
+    Discper Decimal(10,2),
+    Discount Decimal(18,2),
+    Taxable Decimal(18,2),
+    TaxId int,
+    Taxcode nvarchar(30),
+    Taxrate decimal(10,2),
+    TaxAmount Decimal(18,2),
+    LineTotal Decimal(18,2),
+    CGSTRate  Decimal(18,2),
+    SGSTRate  Decimal(18,2),
+    IGSTRate  Decimal(18,2),
+    CGST  Decimal(18,2),
+    SGST  Decimal(18,2),
+    IGST  Decimal(18,2),
+    BaseType nvarchar(20),
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    WhId INT NOT NULL,
+    OpenQty DECIMAL(18,2)
+    Stockvalue as (Qty * AvgPrice) PERSISTED,
+    AcctCode nvarchar(25),
+    CONSTRAINT PK_GRPODet PRIMARY KEY (Docid, ItemId),
+    CONSTRAINT FK_GRPODet_GRPOHd FOREIGN KEY (Docentry) REFERENCES GRPOHd(Docentry),
+    CONSTRAINT FK_GRPODet_Item FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+CREATE INDEX IDX_GRPODet_Docentry ON GRPODet(Docentry);
+CREATE INDEX IDX_GRPODet_ItemId ON GRPODet(ItemId);
+
+
+
+
+CREATE TABLE PURHd (
+    Docentry INT IDENTITY PRIMARY KEY,
+    Docnum int,
+    PeriodId int,
+    Docno NVARCHAR(50) NOT NULL UNIQUE,
+    DocDate DATETIME NOT NULL,
+    DOCDUEDATE DATETIME NOT NULL,
+    ObjType  nvarchar(20),
+    Doctype  nvarchar(1) DEFAULT 'I',
+    PartyId INT NOT NULL,
+    Cardcode nvarchar(20),
+    Cardname nvarchar(100), 
+    Total DECIMAL(18,2) DEFAULT 0,
+    FreightAmt decimal(11,2) DEFAULT 0,
+    Discount decimal(18,2) DEFAULT 0,
+    TDSAmount DECIMAL(18,2) DEFAULT 0,
+    TaxAmount Decimal(18,2) DEFAULT 0,
+    RoundOff decimal(10,2) DEFAULT 0, 
+    DocTotal decimal(18,2) DEFAULT 0, 
+    Cancelled nvarchar(1) DEFAULT 'N',
+    ShipToCode  nvarchar(50),
+    Reference  nvarchar(150),
+    JrnlEntry int,
+    userid as int,
+    CreatedDate datetime,
+    UpdatedDate datetime,
+    CONSTRAINT FK_PURHd_Party FOREIGN KEY (PartyId) REFERENCES PartyMaster(PartyId)
+);
+
+CREATE TABLE PURDet (
+    DocId as INT IDENTITY PRIMARY KEY,
+    LineNum as int,
+    Docentry INT NOT NULL,
+    ItemId INT NOT NULL,
+    Itemcode nvarchar(50),
+    Itemname nvarchar(100),
+    Qty DECIMAL(18,2) DEFAULT 0,
+    Rate DECIMAL(18,2) DEFAULT 0,
+    Amount AS (Qty * Rate) PERSISTED,
+    Discper Decimal(10,2),
+    Discount Decimal(18,2),
+    Taxable Decimal(18,2),
+    TaxId int,
+    Taxcode nvarchar(30),
+    Taxrate decimal(10,2),
+    TaxAmount Decimal(18,2)
+    LineTotal Decimal(18,2)
+    CGSTRate  Decimal(18,2),
+    SGSTRate  Decimal(18,2),
+    IGSTRate  Decimal(18,2),
+    CGST  Decimal(18,2),
+    SGST  Decimal(18,2),
+    IGST  Decimal(18,2),
+    BaseType nvarchar(20),
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    WhId INT NOT NULL,
+    OpenQty DECIMAL(18,2)
+    Stockvalue as (Qty * AvgPrice) PERSISTED,
+    AcctCode nvarchar(25),
+    CONSTRAINT PK_PURDet PRIMARY KEY (Docid, ItemId),
+    CONSTRAINT FK_PURDet_PURHd FOREIGN KEY (Docentry) REFERENCES PURHd(Docentry),
+    CONSTRAINT FK_PURDet_Item FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+CREATE INDEX IDX_PURDet_Docentry ON PURDet(Docentry);
+CREATE INDEX IDX_PURDet_ItemId ON PURDet(ItemId);
+
+
+CREATE TABLE DNHd (
+    Docentry INT IDENTITY PRIMARY KEY,
+    Docnum int,
+    PeriodId int,
+    Docno NVARCHAR(50) NOT NULL UNIQUE,
+    DocDate DATETIME NOT NULL,
+    DOCDUEDATE DATETIME NOT NULL,
+    ObjType  nvarchar(20),
+    Doctype  nvarchar(1) DEFAULT 'I',
+    PartyId INT NOT NULL,
+    Cardcode nvarchar(20),
+    Cardname nvarchar(100), 
+    Total DECIMAL(18,2) DEFAULT 0,
+    FreightAmt decimal(11,2) DEFAULT 0,
+    Discount decimal(18,2) DEFAULT 0,
+    TDSAmount DECIMAL(18,2) DEFAULT 0,
+    TaxAmount Decimal(18,2) DEFAULT 0,
+    RoundOff decimal(10,2) DEFAULT 0, 
+    DocTotal decimal(18,2) DEFAULT 0, 
+    Cancelled nvarchar(1) DEFAULT 'N',
+    ShipToCode  nvarchar(50),
+    Reference  nvarchar(150),
+    JrnlEntry int,
+    userid as int,
+    CreatedDate datetime,
+    UpdatedDate datetime,
+    CONSTRAINT FK_DNHd_Party FOREIGN KEY (PartyId) REFERENCES PartyMaster(PartyId)
+);
+
+CREATE TABLE DNDet (
+    DocId as INT IDENTITY PRIMARY KEY,
+    LineNum as int,
+    Docentry INT NOT NULL,
+    ItemId INT NOT NULL,
+    Itemcode nvarchar(50),
+    Itemname nvarchar(100),
+    Qty DECIMAL(18,2) DEFAULT 0,
+    Rate DECIMAL(18,2) DEFAULT 0,
+    Amount AS (Qty * Rate) PERSISTED,
+    Discper Decimal(10,2),
+    Discount Decimal(18,2),
+    Taxable Decimal(18,2),
+    TaxId int,
+    Taxcode nvarchar(30),
+    Taxrate decimal(10,2),
+    TaxAmount Decimal(18,2)
+    LineTotal Decimal(18,2)
+    CGSTRate  Decimal(18,2),
+    SGSTRate  Decimal(18,2),
+    IGSTRate  Decimal(18,2),
+    CGST  Decimal(18,2),
+    SGST  Decimal(18,2),
+    IGST  Decimal(18,2),
+    BaseType nvarchar(20),
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    WhId INT NOT NULL,
+    OpenQty DECIMAL(18,2)
+    Stockvalue as (Qty * AvgPrice) PERSISTED,
+    AcctCode nvarchar(25),
+    CONSTRAINT PK_DNDet PRIMARY KEY (Docid, ItemId),
+    CONSTRAINT FK_DNDet_DNHd FOREIGN KEY (Docentry) REFERENCES DNHd(Docentry),
+    CONSTRAINT FK_DNDet_Item FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+CREATE INDEX IDX_DNDet_Docentry ON DNDet(Docentry);
+CREATE INDEX IDX_DNDet_ItemId ON DNDet(ItemId);
+
+
+--***** Sales
+
+
+CREATE TABLE SOHd (
+    Docentry INT IDENTITY PRIMARY KEY,
+    Docnum int,
+    PeriodId int,
+    Docno NVARCHAR(50) NOT NULL UNIQUE,
+    DocDate DATETIME NOT NULL,
+    DOCDUEDATE DATETIME NOT NULL,
+    ObjType  nvarchar(20),
+    Doctype  nvarchar(1) DEFAULT 'I',
+    PartyId INT NOT NULL,
+    Cardcode nvarchar(20),
+    Cardname nvarchar(100), 
+    Total DECIMAL(18,2) DEFAULT 0,
+    FreightAmt decimal(11,2) DEFAULT 0,
+    Discount decimal(18,2) DEFAULT 0,
+    TDSAmount DECIMAL(18,2) DEFAULT 0,
+    TaxAmount Decimal(18,2) DEFAULT 0,
+    RoundOff decimal(10,2) DEFAULT 0, 
+    DocTotal decimal(18,2) DEFAULT 0, 
+    Cancelled nvarchar(1) DEFAULT 'N',
+    ShipToCode  nvarchar(50),
+    Reference  nvarchar(150),
+    JrnlEntry int,
+    userid as int,
+    CreatedDate datetime,
+    UpdatedDate datetime,
+    CONSTRAINT FK_SOHd_Party FOREIGN KEY (PartyId) REFERENCES PartyMaster(PartyId)
+);
+
+CREATE TABLE SODet (
+    DocId as INT IDENTITY PRIMARY KEY,
+    LineNum as int,
+    Docentry INT NOT NULL,
+    ItemId INT NOT NULL,
+    Itemcode nvarchar(50),
+    Itemname nvarchar(100),
+    Qty DECIMAL(18,2) DEFAULT 0,
+    Rate DECIMAL(18,2) DEFAULT 0,
+    Amount AS (Qty * Rate) PERSISTED,
+    Discper Decimal(10,2),
+    Discount Decimal(18,2),
+    Taxable Decimal(18,2),
+    TaxId int,
+    Taxcode nvarchar(30),
+    Taxrate decimal(10,2),
+    TaxAmount Decimal(18,2)
+    LineTotal Decimal(18,2)
+    CGSTRate  Decimal(18,2),
+    SGSTRate  Decimal(18,2),
+    IGSTRate  Decimal(18,2),
+    CGST  Decimal(18,2),
+    SGST  Decimal(18,2),
+    IGST  Decimal(18,2),
+    BaseType nvarchar(20),
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    WhId INT NOT NULL,
+    OpenQty DECIMAL(18,2)
+    Stockvalue as (Qty * AvgPrice) PERSISTED,
+    AcctCode nvarchar(25),
+    CONSTRAINT PK_SODet PRIMARY KEY (DocId, ItemId),
+    CONSTRAINT FK_SODet_SOHd FOREIGN KEY (Docentry) REFERENCES SOHd(Docentry),
+    CONSTRAINT FK_SODet_Item FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+CREATE INDEX IDX_SODet_Docentry ON SODet(Docentry);
+CREATE INDEX IDX_SODet_ItemId ON SODet(ItemId);
+
+
+CREATE TABLE DELHd (
+    Docentry INT IDENTITY PRIMARY KEY,
+    Docnum int,
+    PeriodId int,
+    Docno NVARCHAR(50) NOT NULL UNIQUE,
+    DocDate DATETIME NOT NULL,
+    DOCDUEDATE DATETIME NOT NULL,
+    ObjType as nvarchar(20),
+    Doctype as nvarchar(1) DEFAULT 'I',
+    PartyId INT NOT NULL,
+    Cardcode nvarchar(20),
+    Cardname nvarchar(100), 
+    Total DECIMAL(18,2) DEFAULT 0,
+    FreightAmt decimal(11,2) DEFAULT 0,
+    Discount decimal(18,2) DEFAULT 0,
+    TDSAmount DECIMAL(18,2) DEFAULT 0,
+    TaxAmount Decimal(18,2) DEFAULT 0,
+    RoundOff decimal(10,2) DEFAULT 0, 
+    DocTotal decimal(18,2) DEFAULT 0, 
+    Cancelled nvarchar(1) DEFAULT 'N',
+    ShipToCode  nvarchar(50),
+    Reference  nvarchar(150),
+    JrnlEntry int,
+    CONSTRAINT FK_DELHd_Party FOREIGN KEY (PartyId) REFERENCES PartyMaster(PartyId)
+);
+
+CREATE TABLE DELDet (
+    DocId as INT IDENTITY PRIMARY KEY,
+    LineNum as int,
+    Docentry INT NOT NULL,
+    ItemId INT NOT NULL,
+    Itemcode nvarchar(50),
+    Itemname nvarchar(100),
+    Qty DECIMAL(18,2) DEFAULT 0,
+    Rate DECIMAL(18,2) DEFAULT 0,
+    Amount AS (Qty * Rate) PERSISTED,
+    Discper Decimal(10,2),
+    Discount Decimal(18,2),
+    Taxable Decimal(18,2),
+    TaxId int,
+    Taxcode nvarchar(30),
+    Taxrate decimal(10,2),
+    TaxAmount Decimal(18,2),
+    LineTotal Decimal(18,2),
+    CGSTRate  Decimal(18,2),
+    SGSTRate  Decimal(18,2),
+    IGSTRate  Decimal(18,2),
+    CGST  Decimal(18,2),
+    SGST  Decimal(18,2),
+    IGST  Decimal(18,2),
+    BaseType nvarchar(20),
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    WhId INT NOT NULL,
+    OpenQty DECIMAL(18,2)
+    Stockvalue as (Qty * AvgPrice) PERSISTED,
+    AcctCode nvarchar(25),
+    CONSTRAINT PK_DELDet PRIMARY KEY (Docid, ItemId),
+    CONSTRAINT FK_DELDet_DELHd FOREIGN KEY (Docentry) REFERENCES DELHd(Docentry),
+    CONSTRAINT FK_DELDet_Item FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+CREATE INDEX IDX_DELDet_Docentry ON DELDet(Docentry);
+CREATE INDEX IDX_DELDet_ItemId ON DELDet(ItemId);
+
+
+
+
+CREATE TABLE SALHd (
+    Docentry INT IDENTITY PRIMARY KEY,
+    Docnum int,
+    PeriodId int,
+    Docno NVARCHAR(50) NOT NULL UNIQUE,
+    DocDate DATETIME NOT NULL,
+    DOCDUEDATE DATETIME NOT NULL,
+    ObjType  nvarchar(20),
+    Doctype  nvarchar(1) DEFAULT 'I',
+    PartyId INT NOT NULL,
+    Cardcode nvarchar(20),
+    Cardname nvarchar(100), 
+    Total DECIMAL(18,2) DEFAULT 0,
+    FreightAmt decimal(11,2) DEFAULT 0,
+    Discount decimal(18,2) DEFAULT 0,
+    TDSAmount DECIMAL(18,2) DEFAULT 0,
+    TaxAmount Decimal(18,2) DEFAULT 0,
+    RoundOff decimal(10,2) DEFAULT 0, 
+    DocTotal decimal(18,2) DEFAULT 0, 
+    Cancelled nvarchar(1) DEFAULT 'N',
+    ShipToCode  nvarchar(50),
+    Reference  nvarchar(150),
+    JrnlEntry int,
+    userid as int,
+    CreatedDate datetime,
+    UpdatedDate datetime,
+    CONSTRAINT FK_SALHd_Party FOREIGN KEY (PartyId) REFERENCES PartyMaster(PartyId)
+);
+
+CREATE TABLE SALDet (
+    DocId as INT IDENTITY PRIMARY KEY,
+    LineNum as int,
+    Docentry INT NOT NULL,
+    ItemId INT NOT NULL,
+    Itemcode nvarchar(50),
+    Itemname nvarchar(100),
+    Qty DECIMAL(18,2) DEFAULT 0,
+    Rate DECIMAL(18,2) DEFAULT 0,
+    Amount AS (Qty * Rate) PERSISTED,
+    Discper Decimal(10,2),
+    Discount Decimal(18,2),
+    Taxable Decimal(18,2),
+    TaxId int,
+    Taxcode nvarchar(30),
+    Taxrate decimal(10,2),
+    TaxAmount Decimal(18,2)
+    LineTotal Decimal(18,2)
+    CGSTRate  Decimal(18,2),
+    SGSTRate  Decimal(18,2),
+    IGSTRate  Decimal(18,2),
+    CGST  Decimal(18,2),
+    SGST  Decimal(18,2),
+    IGST  Decimal(18,2),
+    BaseType nvarchar(20),
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    WhId INT NOT NULL,
+    OpenQty DECIMAL(18,2)
+    Stockvalue as (Qty * AvgPrice) PERSISTED,
+    AcctCode nvarchar(25),
+    CONSTRAINT PK_SALDet PRIMARY KEY (Docid, ItemId),
+    CONSTRAINT FK_SALDet_SALHd FOREIGN KEY (Docentry) REFERENCES SALHd(Docentry),
+    CONSTRAINT FK_SALDet_Item FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+CREATE INDEX IDX_SALDet_Docentry ON SALDet(Docentry);
+CREATE INDEX IDX_SALDet_ItemId ON SALDet(ItemId);
+
+
+CREATE TABLE CNHd (
+    Docentry INT IDENTITY PRIMARY KEY,
+    Docnum int,
+    PeriodId int,
+    Docno NVARCHAR(50) NOT NULL UNIQUE,
+    DocDate DATETIME NOT NULL,
+    DOCDUEDATE DATETIME NOT NULL,
+    ObjType  nvarchar(20),
+    Doctype  nvarchar(1) DEFAULT 'I',
+    PartyId INT NOT NULL,
+    Cardcode nvarchar(20),
+    Cardname nvarchar(100), 
+    Total DECIMAL(18,2) DEFAULT 0,
+    FreightAmt decimal(11,2) DEFAULT 0,
+    Discount decimal(18,2) DEFAULT 0,
+    TDSAmount DECIMAL(18,2) DEFAULT 0,
+    TaxAmount Decimal(18,2) DEFAULT 0,
+    RoundOff decimal(10,2) DEFAULT 0, 
+    DocTotal decimal(18,2) DEFAULT 0, 
+    Cancelled nvarchar(1) DEFAULT 'N',
+    ShipToCode  nvarchar(50),
+    Reference  nvarchar(150),
+    JrnlEntry int,
+    userid as int,
+    CreatedDate datetime,
+    UpdatedDate datetime,
+    CONSTRAINT FK_CNHd_Party FOREIGN KEY (PartyId) REFERENCES PartyMaster(PartyId)
+);
+
+CREATE TABLE CNDet (
+    DocId as INT IDENTITY PRIMARY KEY,
+    LineNum as int,
+    Docentry INT NOT NULL,
+    ItemId INT NOT NULL,
+    Itemcode nvarchar(50),
+    Itemname nvarchar(100),
+    Qty DECIMAL(18,2) DEFAULT 0,
+    Rate DECIMAL(18,2) DEFAULT 0,
+    Amount AS (Qty * Rate) PERSISTED,
+    Discper Decimal(10,2),
+    Discount Decimal(18,2),
+    Taxable Decimal(18,2),
+    TaxId int,
+    Taxcode nvarchar(30),
+    Taxrate decimal(10,2),
+    TaxAmount Decimal(18,2)
+    LineTotal Decimal(18,2)
+    CGSTRate  Decimal(18,2),
+    SGSTRate  Decimal(18,2),
+    IGSTRate  Decimal(18,2),
+    CGST  Decimal(18,2),
+    SGST  Decimal(18,2),
+    IGST  Decimal(18,2),
+    BaseType nvarchar(20),
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    WhId INT NOT NULL,
+    OpenQty DECIMAL(18,2)
+    Stockvalue as (Qty * AvgPrice) PERSISTED,
+    AcctCode nvarchar(25),
+    CONSTRAINT PK_CNDet PRIMARY KEY (Docid, ItemId),
+    CONSTRAINT FK_CNDet_CNHd FOREIGN KEY (Docentry) REFERENCES CNHd(Docentry),
+    CONSTRAINT FK_CNDet_Item FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+CREATE INDEX IDX_CNDet_Docentry ON CNDet(Docentry);
+CREATE INDEX IDX_CNDet_ItemId ON CNDet(ItemId);
+
+
+
+CREATE TABLE POSHd (
+    Docentry INT IDENTITY PRIMARY KEY,
+    Docnum int,
+    PeriodId int,
+    Docno NVARCHAR(50) NOT NULL UNIQUE,
+    DocDate DATETIME NOT NULL,
+    DOCDUEDATE DATETIME NOT NULL,
+    ObjType  nvarchar(20),
+    Doctype  nvarchar(1) DEFAULT 'I',
+    PartyId INT NOT NULL,
+    Cardcode nvarchar(20),
+    Cardname nvarchar(100), 
+    Total DECIMAL(18,2) DEFAULT 0,
+    FreightAmt decimal(11,2) DEFAULT 0,
+    Discount decimal(18,2) DEFAULT 0,
+    TDSAmount DECIMAL(18,2) DEFAULT 0,
+    TaxAmount Decimal(18,2) DEFAULT 0,
+    RoundOff decimal(10,2) DEFAULT 0, 
+    DocTotal decimal(18,2) DEFAULT 0, 
+    Cancelled nvarchar(1) DEFAULT 'N',
+    ShipToCode  nvarchar(50),
+    Reference  nvarchar(150),
+    JrnlEntry int,
+    userid as int,
+    CreatedDate datetime,
+    UpdatedDate datetime,
+    CONSTRAINT FK_POSHd_Party FOREIGN KEY (PartyId) REFERENCES PartyMaster(PartyId)
+);
+
+CREATE TABLE POSDet (
+    DocId as INT IDENTITY PRIMARY KEY,
+    LineNum as int,
+    Docentry INT NOT NULL,
+    ItemId INT NOT NULL,
+    Itemcode nvarchar(50),
+    Itemname nvarchar(100),
+    Qty DECIMAL(18,2) DEFAULT 0,
+    Rate DECIMAL(18,2) DEFAULT 0,
+    Amount AS (Qty * Rate) PERSISTED,
+    Discper Decimal(10,2),
+    Discount Decimal(18,2),
+    Taxable Decimal(18,2),
+    TaxId int,
+    Taxcode nvarchar(30),
+    Taxrate decimal(10,2),
+    TaxAmount Decimal(18,2)
+    LineTotal Decimal(18,2)
+    CGSTRate  Decimal(18,2),
+    SGSTRate  Decimal(18,2),
+    IGSTRate  Decimal(18,2),
+    CGST  Decimal(18,2),
+    SGST  Decimal(18,2),
+    IGST  Decimal(18,2),
+    BaseType nvarchar(20),
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    WhId INT NOT NULL,
+    OpenQty DECIMAL(18,2)
+    Stockvalue as (Qty * AvgPrice) PERSISTED,
+    AcctCode nvarchar(25),
+    CONSTRAINT PK_POSDet PRIMARY KEY (Docid, ItemId),
+    CONSTRAINT FK_POSDet_SALHd FOREIGN KEY (Docentry) REFERENCES POSHd(Docentry),
+    CONSTRAINT FK_POSDet_Item FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+CREATE INDEX IDX_POSDet_Docentry ON POSDet(Docentry);
+CREATE INDEX IDX_POSDet_ItemId ON POSDet(ItemId);
+
+CREATE TABLE POSRTNHd (
+    Docentry INT IDENTITY PRIMARY KEY,
+    Docnum int,
+    PeriodId int,
+    Docno NVARCHAR(50) NOT NULL UNIQUE,
+    DocDate DATETIME NOT NULL,
+    DOCDUEDATE DATETIME NOT NULL,
+    ObjType  nvarchar(20),
+    Doctype  nvarchar(1) DEFAULT 'I',
+    PartyId INT NOT NULL,
+    Cardcode nvarchar(20),
+    Cardname nvarchar(100), 
+    Total DECIMAL(18,2) DEFAULT 0,
+    FreightAmt decimal(11,2) DEFAULT 0,
+    Discount decimal(18,2) DEFAULT 0,
+    TDSAmount DECIMAL(18,2) DEFAULT 0,
+    TaxAmount Decimal(18,2) DEFAULT 0,
+    RoundOff decimal(10,2) DEFAULT 0, 
+    DocTotal decimal(18,2) DEFAULT 0, 
+    Cancelled nvarchar(1) DEFAULT 'N',
+    ShipToCode  nvarchar(50),
+    Reference  nvarchar(150),
+    JrnlEntry int,
+    userid as int,
+    CreatedDate datetime,
+    UpdatedDate datetime,
+    CONSTRAINT FK_POSRTNHd_Party FOREIGN KEY (PartyId) REFERENCES PartyMaster(PartyId)
+);
+
+CREATE TABLE POSRTNDet (
+    DocId as INT IDENTITY PRIMARY KEY,
+    LineNum as int,
+    Docentry INT NOT NULL,
+    ItemId INT NOT NULL,
+    Itemcode nvarchar(50),
+    Itemname nvarchar(100),
+    Qty DECIMAL(18,2) DEFAULT 0,
+    Rate DECIMAL(18,2) DEFAULT 0,
+    Amount AS (Qty * Rate) PERSISTED,
+    Discper Decimal(10,2),
+    Discount Decimal(18,2),
+    Taxable Decimal(18,2),
+    TaxId int,
+    Taxcode nvarchar(30),
+    Taxrate decimal(10,2),
+    TaxAmount Decimal(18,2)
+    LineTotal Decimal(18,2)
+    CGSTRate  Decimal(18,2),
+    SGSTRate  Decimal(18,2),
+    IGSTRate  Decimal(18,2),
+    CGST  Decimal(18,2),
+    SGST  Decimal(18,2),
+    IGST  Decimal(18,2),
+    BaseType nvarchar(20),
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    WhId INT NOT NULL,
+    OpenQty DECIMAL(18,2)
+    Stockvalue as (Qty * AvgPrice) PERSISTED,
+    AcctCode nvarchar(25),
+    CONSTRAINT PK_POSRTNDet PRIMARY KEY (Docid, ItemId),
+    CONSTRAINT FK_POSRTNDet_POSRTNHd FOREIGN KEY (Docentry) REFERENCES POSRTNHd(Docentry),
+    CONSTRAINT FK_POSRTNDet_Item FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+CREATE INDEX IDX_POSRTNDet_Docentry ON POSRTNDet(Docentry);
+CREATE INDEX IDX_POSRTNDet_ItemId ON POSRTNDet(ItemId);
+
+
+--*** Item Transfer
+
+
+CREATE TABLE WHTRHd (
+    Docentry INT IDENTITY PRIMARY KEY,
+    Docnum int,
+    PeriodId int,
+    Docno NVARCHAR(50) NOT NULL UNIQUE,
+    DocDate DATETIME NOT NULL,
+    DOCDUEDATE DATETIME NOT NULL,
+    ObjType  nvarchar(20),
+    Doctype  nvarchar(1) DEFAULT 'I',
+    PartyId INT NOT NULL,
+    Cardcode nvarchar(20),
+    Cardname nvarchar(100), 
+    Total DECIMAL(18,2) DEFAULT 0,
+    FreightAmt decimal(11,2) DEFAULT 0,
+    Discount decimal(18,2) DEFAULT 0,
+    TDSAmount DECIMAL(18,2) DEFAULT 0,
+    TaxAmount Decimal(18,2) DEFAULT 0,
+    RoundOff decimal(10,2) DEFAULT 0, 
+    DocTotal decimal(18,2) DEFAULT 0, 
+    Cancelled nvarchar(1) DEFAULT 'N',
+    ShipToCode  nvarchar(50),
+    Reference  nvarchar(150),
+    frmwhsid int,
+    towhsid int,
+    FrmWhscode nvarchar(30),
+    ToWhscode nvarchar(30),
+    JrnlEntry int,
+    userid as int,
+    CreatedDate datetime,
+    UpdatedDate datetime,
+    CONSTRAINT FK_WHTRHd_Party FOREIGN KEY (PartyId) REFERENCES PartyMaster(PartyId)
+);
+
+CREATE TABLE WHTRDet (
+    DocId as INT IDENTITY PRIMARY KEY,
+    LineNum as int,
+    Docentry INT NOT NULL,
+    ItemId INT NOT NULL,
+    Itemcode nvarchar(50),
+    Itemname nvarchar(100),
+    Qty DECIMAL(18,2) DEFAULT 0,
+    Rate DECIMAL(18,2) DEFAULT 0,
+    Amount AS (Qty * Rate) PERSISTED,
+    Discper Decimal(10,2),
+    Discount Decimal(18,2),
+    Taxable Decimal(18,2),
+    TaxId int,
+    Taxcode nvarchar(30),
+    Taxrate decimal(10,2),
+    TaxAmount Decimal(18,2)
+    LineTotal Decimal(18,2)
+    CGSTRate  Decimal(18,2),
+    SGSTRate  Decimal(18,2),
+    IGSTRate  Decimal(18,2),
+    CGST  Decimal(18,2),
+    SGST  Decimal(18,2),
+    IGST  Decimal(18,2),
+    BaseType nvarchar(20),
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    WhId INT NOT NULL,
+    OpenQty DECIMAL(18,2)
+    Stockvalue as (Qty * AvgPrice) PERSISTED,
+    AcctCode nvarchar(25),
+    Frmwhsid int,
+    FrmWhscode nvarchar(30),
+    Whscode nvarchar(30),
+    CONSTRAINT PK_WHTRDet PRIMARY KEY (Docid, ItemId),
+    CONSTRAINT FK_WHTRDet_WHTRHd FOREIGN KEY (Docentry) REFERENCES WHTRHd(Docentry),
+    CONSTRAINT FK_WHTRDet_Item FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+CREATE INDEX IDX_WHTRDet_Docentry ON WHTRDet(Docentry);
+CREATE INDEX IDX_WHTRDet_ItemId ON WHTRDet(ItemId);
+
+
+
+
+-- GoodsIssue
+CREATE TABLE GISSHd (
+    Docentry INT IDENTITY PRIMARY KEY,
+    Docnum int,
+    PeriodId int,
+    Docno NVARCHAR(50) NOT NULL UNIQUE,
+    DocDate DATETIME NOT NULL,
+    DOCDUEDATE DATETIME NOT NULL,
+    ObjType  nvarchar(20),
+    Doctype  nvarchar(1) DEFAULT 'I',
+    PartyId INT NOT NULL,
+    Cardcode nvarchar(20),
+    Cardname nvarchar(100), 
+    Total DECIMAL(18,2) DEFAULT 0,
+    FreightAmt decimal(11,2) DEFAULT 0,
+    Discount decimal(18,2) DEFAULT 0,
+    TDSAmount DECIMAL(18,2) DEFAULT 0,
+    TaxAmount Decimal(18,2) DEFAULT 0,
+    RoundOff decimal(10,2) DEFAULT 0, 
+    DocTotal decimal(18,2) DEFAULT 0, 
+    Cancelled nvarchar(1) DEFAULT 'N',
+    ShipToCode  nvarchar(50),
+    Reference  nvarchar(150),
+    JrnlEntry int,
+    userid as int,
+    CreatedDate datetime,
+    UpdatedDate datetime,
+    CONSTRAINT FK_GISSHd_Party FOREIGN KEY (PartyId) REFERENCES PartyMaster(PartyId)
+);
+
+CREATE TABLE GISSDet (
+    DocId as INT IDENTITY PRIMARY KEY,
+    LineNum as int,
+    Docentry INT NOT NULL,
+    ItemId INT NOT NULL,
+    Itemcode nvarchar(50),
+    Itemname nvarchar(100),
+    Qty DECIMAL(18,2) DEFAULT 0,
+    Rate DECIMAL(18,2) DEFAULT 0,
+    Amount AS (Qty * Rate) PERSISTED,
+    Discper Decimal(10,2),
+    Discount Decimal(18,2),
+    Taxable Decimal(18,2),
+    TaxId int,
+    Taxcode nvarchar(30),
+    Taxrate decimal(10,2),
+    TaxAmount Decimal(18,2)
+    LineTotal Decimal(18,2)
+    CGSTRate  Decimal(18,2),
+    SGSTRate  Decimal(18,2),
+    IGSTRate  Decimal(18,2),
+    CGST  Decimal(18,2),
+    SGST  Decimal(18,2),
+    IGST  Decimal(18,2),
+    BaseType nvarchar(20),
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    WhId INT NOT NULL,
+    OpenQty DECIMAL(18,2)
+    Stockvalue as (Qty * AvgPrice) PERSISTED,
+    AcctCode nvarchar(25),
+    CONSTRAINT PK_GISSDet PRIMARY KEY (Docid, ItemId),
+    CONSTRAINT FK_GISSDet_GISSHd FOREIGN KEY (Docentry) REFERENCES GISSHd(Docentry),
+    CONSTRAINT FK_GISSDet_Item FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+CREATE INDEX IDX_GISSDet_Docentry ON GISSDet(Docentry);
+CREATE INDEX IDX_GISSDet_ItemId ON GISSDet(ItemId);
+
+--**Goods Receipt
+CREATE TABLE GRCTHd (
+    Docentry INT IDENTITY PRIMARY KEY,
+    Docnum int,
+    PeriodId int,
+    Docno NVARCHAR(50) NOT NULL UNIQUE,
+    DocDate DATETIME NOT NULL,
+    DOCDUEDATE DATETIME NOT NULL,
+    ObjType  nvarchar(20),
+    Doctype  nvarchar(1) DEFAULT 'I',
+    PartyId INT NOT NULL,
+    Cardcode nvarchar(20),
+    Cardname nvarchar(100), 
+    Total DECIMAL(18,2) DEFAULT 0,
+    FreightAmt decimal(11,2) DEFAULT 0,
+    Discount decimal(18,2) DEFAULT 0,
+    TDSAmount DECIMAL(18,2) DEFAULT 0,
+    TaxAmount Decimal(18,2) DEFAULT 0,
+    RoundOff decimal(10,2) DEFAULT 0, 
+    DocTotal decimal(18,2) DEFAULT 0, 
+    Cancelled nvarchar(1) DEFAULT 'N',
+    ShipToCode  nvarchar(50),
+    Reference  nvarchar(150),
+    JrnlEntry int,
+    userid as int,
+    CreatedDate datetime,
+    UpdatedDate datetime,
+    CONSTRAINT FK_GRCTHd_Party FOREIGN KEY (PartyId) REFERENCES PartyMaster(PartyId)
+);
+
+CREATE TABLE GRCTDet (
+    DocId as INT IDENTITY PRIMARY KEY,
+    LineNum as int,
+    Docentry INT NOT NULL,
+    ItemId INT NOT NULL,
+    Itemcode nvarchar(50),
+    Itemname nvarchar(100),
+    Qty DECIMAL(18,2) DEFAULT 0,
+    Rate DECIMAL(18,2) DEFAULT 0,
+    Amount AS (Qty * Rate) PERSISTED,
+    Discper Decimal(10,2),
+    Discount Decimal(18,2),
+    Taxable Decimal(18,2),
+    TaxId int,
+    Taxcode nvarchar(30),
+    Taxrate decimal(10,2),
+    TaxAmount Decimal(18,2)
+    LineTotal Decimal(18,2)
+    CGSTRate  Decimal(18,2),
+    SGSTRate  Decimal(18,2),
+    IGSTRate  Decimal(18,2),
+    CGST  Decimal(18,2),
+    SGST  Decimal(18,2),
+    IGST  Decimal(18,2),
+    BaseType nvarchar(20),
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    WhId INT NOT NULL,
+    OpenQty DECIMAL(18,2)
+    Stockvalue as (Qty * AvgPrice) PERSISTED,
+    AcctCode nvarchar(25),
+    CONSTRAINT PK_GRCTDet PRIMARY KEY (Docid, ItemId),
+    CONSTRAINT FK_GRCTDet_GRCTHd FOREIGN KEY (Docentry) REFERENCES GRCTHd(Docentry),
+    CONSTRAINT FK_GRCTDet_Item FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+CREATE INDEX IDX_GRCTDet_Docentry ON GRCTDet(Docentry);
+CREATE INDEX IDX_GRCTDet_ItemId ON GRCTDet(ItemId);
+
+
+
+--***
+
+
+
+
+
+
+
+
