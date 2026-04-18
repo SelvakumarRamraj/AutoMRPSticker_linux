@@ -1,0 +1,86 @@
+Imports SAPbobsCOM
+
+Public Function CreateInvoiceFromDeliveryWithBatch(deliveryDocEntry As Integer) As Boolean
+    Dim oDelivery As Documents = Nothing
+    Dim oInvoice As Documents = Nothing
+
+    Try
+        ' Load Delivery
+        oDelivery = CType(oCompany.GetBusinessObject(BoObjectTypes.oDeliveryNotes), Documents)
+        If Not oDelivery.GetByKey(deliveryDocEntry) Then
+            Throw New Exception("Delivery not found")
+        End If
+
+        ' Create AR Invoice
+        oInvoice = CType(oCompany.GetBusinessObject(BoObjectTypes.oInvoices), Documents)
+
+        ' Copy Header Fields
+        oInvoice.CardCode = oDelivery.CardCode
+        oInvoice.DocDate = DateTime.Now
+        oInvoice.TaxDate = DateTime.Now
+        oInvoice.DocDueDate = DateTime.Now
+        oInvoice.Comments = "Invoice created from Delivery No. " & oDelivery.DocNum
+
+        ' LOOP DELIVERY LINES
+        For i As Integer = 0 To oDelivery.Lines.Count - 1
+            oDelivery.Lines.SetCurrentLine(i)
+
+            oInvoice.Lines.BaseType = 15                    ' Delivery
+            oInvoice.Lines.BaseEntry = deliveryDocEntry
+            oInvoice.Lines.BaseLine = i
+
+            ' ------------------------------
+            ' COPY BATCHES (IF MANAGED BY BATCH)
+            ' ------------------------------
+            If oDelivery.Lines.BatchNumbers.Count > 0 Then
+                For b As Integer = 0 To oDelivery.Lines.BatchNumbers.Count - 1
+                    oDelivery.Lines.BatchNumbers.SetCurrentLine(b)
+
+                    oInvoice.Lines.BatchNumbers.BatchNumber = oDelivery.Lines.BatchNumbers.BatchNumber
+                    oInvoice.Lines.BatchNumbers.Quantity = oDelivery.Lines.BatchNumbers.Quantity
+                    oInvoice.Lines.BatchNumbers.Add()
+                Next
+            End If
+
+            ' ------------------------------
+            ' COPY SERIALS (IF MANAGED BY SERIAL)
+            ' ------------------------------
+            If oDelivery.Lines.SerialNumbers.Count > 0 Then
+                For s As Integer = 0 To oDelivery.Lines.SerialNumbers.Count - 1
+                    oDelivery.Lines.SerialNumbers.SetCurrentLine(s)
+
+                    oInvoice.Lines.SerialNumbers.InternalSerialNumber = oDelivery.Lines.SerialNumbers.InternalSerialNumber
+                    oInvoice.Lines.SerialNumbers.ManufacturerSerialNumber = oDelivery.Lines.SerialNumbers.ManufacturerSerialNumber
+                    oInvoice.Lines.SerialNumbers.Add()
+                Next
+            End If
+
+            ' Add invoice line
+            oInvoice.Lines.Add()
+        Next
+
+        ' ADD TO SAP
+        Dim ret = oInvoice.Add()
+        If ret <> 0 Then
+            Dim errCode As Integer
+            Dim errMsg As String = ""
+            oCompany.GetLastError(errCode, errMsg)
+            Throw New Exception("SAP Error: " & errMsg)
+        End If
+
+        Return True
+
+    Catch ex As Exception
+        MsgBox("Error: " & ex.Message)
+        Return False
+
+    Finally
+        Marshal.ReleaseComObject(oDelivery)
+        Marshal.ReleaseComObject(oInvoice)
+    End Try
+End Function
+********************************usage
+If CreateInvoiceFromDeliveryWithBatch(1234) Then
+    MsgBox("Invoice Created with Batches/Serials!")
+End If
+****************************

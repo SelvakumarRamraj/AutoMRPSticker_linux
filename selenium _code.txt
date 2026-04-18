@@ -1,0 +1,103 @@
+id=ctl00_ContentPlaceHolder1_txt_ebillno
+id=printable
+
+id=ctl00_ContentPlaceHolder1_btn_go
+
+linkText=Print
+
+linkText=Print
+
+linkText=Print
+
+xpath=//tr[@id='ctl00_ContentPlaceHolder1_printtr']/td/a
+
+xpath=//a[contains(.,'Print')]
+
+linkText=Print EWB
+
+linkText=Exit
+
+
+css=#ctl00_ContentPlaceHolder1_R10 .nav-label
+
+xpath=//span[contains(.,'e-Waybill')]
+xpath=//li[@id='ctl00_ContentPlaceHolder1_R10']/a/span
+
+
+Dim wait As New WebDriverWait(driver, TimeSpan.FromSeconds(20))
+
+Dim lnkPrint As IWebElement = wait.Until(
+    Function(d)
+        Dim el = d.FindElement(By.LinkText("Print"))
+        If el.Displayed AndAlso el.Enabled Then
+            Return el
+        End If
+        Return Nothing
+    End Function
+)
+
+lnkPrint.Click()
+
+
+Dim wait As New WebDriverWait(driver, TimeSpan.FromSeconds(20))
+
+Dim btnGo As IWebElement = wait.Until(
+    Function(d)
+        Dim el = d.FindElement(By.Id("ctl00_ContentPlaceHolder1_btn_go"))
+        If el.Displayed AndAlso el.Enabled Then
+            Return el
+        End If
+        Return Nothing
+    End Function
+)
+
+btnGo.Click()
+
+
+linkText=Print
+css=.btn-primary
+xpath=//a[contains(text(),'Print')]
+xpath=//a[@onclick='printOnlyDiv()']
+xpath=//tr[@id='ctl00_ContentPlaceHolder1_printtr']/td/a
+xpath=(//a[contains(@href, '#')])[4]
+xpath=//td/a
+xpath=//a[contains(.,'Print')]
+
+
+Dim btnPrint As IWebElement = driver.FindElement(By.XPath("//a[@onclick='printOnlyDiv()']"))
+
+' Scroll into view
+Dim js = CType(driver, IJavaScriptExecutor)
+js.ExecuteScript("arguments[0].scrollIntoView(true);", btnPrint)
+Thread.Sleep(300)
+
+' Click via JS (bypasses footer)
+js.ExecuteScript("arguments[0].click();", btnPrint)
+
+*************************
+
+
+linkText=Exit
+css=.btn-danger
+xpath=//a[contains(text(),'Exit')]
+xpath=//tr[@id='ctl00_ContentPlaceHolder1_srcdata']/td[3]/a
+xpath=//a[contains(@href, '../Mainmenu.aspx')]
+xpath=//td[3]/a
+xpath=//a[contains(.,'Exit')]
+
+
+Dim wait As New WebDriverWait(driver, TimeSpan.FromSeconds(20))
+
+Dim btnExit As IWebElement = wait.Until(
+    Function(d)
+        Dim el = d.FindElement(By.XPath("//a[contains(@href, '../Mainmenu.aspx')]"))
+        If el.Displayed AndAlso el.Enabled Then
+            Return el
+        End If
+        Return Nothing
+    End Function
+)
+
+btnExit.Click()
+
+****************************

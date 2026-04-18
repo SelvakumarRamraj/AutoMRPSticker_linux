@@ -1,0 +1,590 @@
+Dim cmd As String = File.ReadAllText("tsc_label.txt")
+File.WriteAllText("\\TSC_PRINTER\USB001", cmd)
+***************************************************
+***************************************************COMMON DATABASE (USED BY BOTH)
+-- Party / Customer
+CREATE TABLE mst.Party (
+    PartyID INT IDENTITY PRIMARY KEY,
+    PartyName VARCHAR(200),
+    GSTNo VARCHAR(20),
+    StateCode VARCHAR(2)
+)
+
+-- Item
+CREATE TABLE mst.Item (
+    ItemID INT IDENTITY PRIMARY KEY,
+    ItemName VARCHAR(200),
+    Rate DECIMAL(18,2),
+    GSTID INT
+)
+
+-- GST
+CREATE TABLE acc.GSTSlab (
+    GSTID INT IDENTITY PRIMARY KEY,
+    GSTCode VARCHAR(10),
+    CGST DECIMAL(5,2),
+    SGST DECIMAL(5,2),
+    IGST DECIMAL(5,2)
+)
+
+****************************************************
+==============================
+🪟 PART 1 – WINDOWS FORMS (VB.NET)
+==============================
+🔹 Form Controls
+--------------------------------
+ComboBox : cboParty
+ComboBox : cboItem
+ComboBox : cboGST
+TextBox  : txtRate
+TextBox  : txtQty
+TextBox  : txtAmount
+DataGridView : dgv
+Button : btnAdd
+---------------------------------
+Load Party / Item / GST
+---------------------------------
+Private Sub FrmSales_Load(...) Handles MyBase.Load
+
+    cboParty.DataSource = SqlHelper.ExecuteDT(
+        "SELECT PartyID, PartyName FROM mst.Party")
+    cboParty.DisplayMember = "PartyName"
+    cboParty.ValueMember = "PartyID"
+
+    cboItem.DataSource = SqlHelper.ExecuteDT(
+        "SELECT ItemID, ItemName FROM mst.Item")
+    cboItem.DisplayMember = "ItemName"
+    cboItem.ValueMember = "ItemID"
+
+    cboGST.DataSource = SqlHelper.ExecuteDT(
+        "SELECT GSTID, GSTCode FROM acc.GSTSlab")
+    cboGST.DisplayMember = "GSTCode"
+    cboGST.ValueMember = "GSTID"
+
+End Sub
+
+-----------------------------------------
+Auto Load Rate + GST
+-----------------------------------------
+Private Sub cboItem_SelectedIndexChanged(...) Handles cboItem.SelectedIndexChanged
+
+    Dim dt = SqlHelper.ExecuteDT(
+        "SELECT Rate, GSTID FROM mst.Item WHERE ItemID=@I",
+        New SqlParameter("@I", cboItem.SelectedValue))
+
+    If dt.Rows.Count > 0 Then
+        txtRate.Text = dt.Rows(0)("Rate").ToString()
+        cboGST.SelectedValue = dt.Rows(0)("GSTID")
+    End If
+End Sub
+
+****************************************Amount + GST Calculation
+Private Sub txtQty_TextChanged(...) Handles txtQty.TextChanged
+
+    Dim qty = Val(txtQty.Text)
+    Dim rate = Val(txtRate.Text)
+    Dim amount = qty * rate
+
+    Dim gst = SqlHelper.ExecuteDT(
+        "SELECT CGST+SGST+IGST AS GST 
+         FROM acc.GSTSlab WHERE GSTID=@G",
+        New SqlParameter("@G", cboGST.SelectedValue))
+
+    Dim gstAmt = amount * gst.Rows(0)("GST") / 100
+    txtAmount.Text = (amount + gstAmt).ToString("0.00")
+
+End Sub
+******************************************Add To Grid
+Private Sub btnAdd_Click(...) Handles btnAdd.Click
+
+    dgv.Rows.Add(
+        cboItem.Text,
+        txtQty.Text,
+        txtRate.Text,
+        cboGST.Text,
+        txtAmount.Text)
+
+End Sub
+********************************************
+********************************************
+==============================
+🌐 PART 2 – ASP.NET MVC (VB.NET)
+==============================
+--------------------------------------------
+Public Class SalesLineVM
+    Public Property PartyID As Integer
+    Public Property ItemID As Integer
+    Public Property Qty As Decimal
+    Public Property Rate As Decimal
+    Public Property GSTID As Integer
+    Public Property Amount As Decimal
+End Class
+**********************************************Controller (VB.NET)
+Public Class SalesController
+    Inherits Controller
+
+    Function Entry() As ActionResult
+        ViewBag.Parties = SqlHelper.ExecuteDT(
+            "SELECT PartyID, PartyName FROM mst.Party")
+
+        ViewBag.Items = SqlHelper.ExecuteDT(
+            "SELECT ItemID, ItemName FROM mst.Item")
+
+        ViewBag.GST = SqlHelper.ExecuteDT(
+            "SELECT GSTID, GSTCode FROM acc.GSTSlab")
+
+        Return View()
+    End Function
+
+    <HttpPost>
+    Function Save(model As SalesLineVM) As ActionResult
+        ' Save logic here
+        Return Json(New With {.success = True})
+    End Function
+End Class
+**************************************************View – Entry.vbhtml
+@Code
+    Dim parties = ViewBag.Parties
+    Dim items = ViewBag.Items
+    Dim gst = ViewBag.GST
+End Code
+
+<select id="PartyID">
+@For Each r As DataRow In parties.Rows
+    @<option value="@r("PartyID")">@r("PartyName")</option>
+Next
+</select>
+
+<select id="ItemID">
+@For Each r As DataRow In items.Rows
+    @<option value="@r("ItemID")">@r("ItemName")</option>
+Next
+</select>
+
+<select id="GSTID">
+@For Each r As DataRow In gst.Rows
+    @<option value="@r("GSTID")">@r("GSTCode")</option>
+Next
+</select>
+
+<input type="text" id="Qty" />
+<input type="text" id="Rate" />
+<input type="text" id="Amount" readonly />
+
+*************************************************
+JavaScript – Auto Calculation
+--------------------------------
+$("#Qty").on("keyup", function () {
+
+    let qty = parseFloat($("#Qty").val()) || 0;
+    let rate = parseFloat($("#Rate").val()) || 0;
+
+    let amount = qty * rate;
+    $("#Amount").val(amount.toFixed(2));
+});
+
+--------------------------------Save (AJAX)
+$.post("/Sales/Save", {
+    PartyID: $("#PartyID").val(),
+    ItemID: $("#ItemID").val(),
+    Qty: $("#Qty").val(),
+    Rate: $("#Rate").val(),
+    GSTID: $("#GSTID").val()
+}, function (r) {
+    alert("Saved");
+});
+
+************************************
+************************************DATABASE TABLES (FINAL)(SALES)
+-- Sales Header
+CREATE TABLE trx.SalesH (
+    DocID INT IDENTITY PRIMARY KEY,
+    DocNo VARCHAR(30),
+    DocDate DATE,
+    PartyID INT,
+    Taxable DECIMAL(18,2),
+    GSTAmount DECIMAL(18,2),
+    NetAmount DECIMAL(18,2),
+    FYID INT
+)
+
+-- Sales Lines
+CREATE TABLE trx.SalesL (
+    LineID INT IDENTITY PRIMARY KEY,
+    DocID INT,
+    ItemID INT,
+    Qty DECIMAL(18,3),
+    Rate DECIMAL(18,2),
+    Amount DECIMAL(18,2),
+    GSTID INT
+)
+
+************************************BLL – SALES SAVE (CORE ERP LOGIC)
+Public Class SalesBLL
+
+    Public Shared Function SaveInvoice(
+        docNo As String,
+        docDate As Date,
+        partyId As Integer,
+        fyId As Integer,
+        lines As DataTable) As Integer
+
+        ' 🔒 FY LOCK CHECK
+        If Not FinancialYearBLL.IsDateAllowed(docDate) Then
+            Throw New Exception("Financial Year Locked")
+        End If
+
+        Dim taxable As Decimal = 0
+        Dim gstAmt As Decimal = 0
+
+        For Each r As DataRow In lines.Rows
+            taxable += r("Amount")
+            gstAmt += r("GSTAmount")
+        Next
+
+        ' HEADER SAVE
+        Dim docId = SqlHelper.ExecuteScalar(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            "INSERT INTO trx.SalesH
+             (DocNo,DocDate,PartyID,Taxable,GSTAmount,NetAmount,FYID)
+             VALUES(@N,@D,@P,@T,@G,@N2,@FY);
+             SELECT SCOPE_IDENTITY()",
+            New SqlParameter("@N", docNo),
+            New SqlParameter("@D", docDate),
+            New SqlParameter("@P", partyId),
+            New SqlParameter("@T", taxable),
+            New SqlParameter("@G", gstAmt),
+            New SqlParameter("@N2", taxable + gstAmt),
+            New SqlParameter("@FY", fyId))
+
+        ' LINE + STOCK POST
+        For Each r As DataRow In lines.Rows
+
+            SqlHelper.ExecuteNonQuery(
+                My.Settings.ERPConn,
+                CommandType.Text,
+                "INSERT INTO trx.SalesL
+                 (DocID,ItemID,Qty,Rate,Amount,GSTID)
+                 VALUES(@D,@I,@Q,@R,@A,@G)",
+                New SqlParameter("@D", docId),
+                New SqlParameter("@I", r("ItemID")),
+                New SqlParameter("@Q", r("Qty")),
+                New SqlParameter("@R", r("Rate")),
+                New SqlParameter("@A", r("Amount")),
+                New SqlParameter("@G", r("GSTID")))
+
+            ' STOCK OUT
+            StockBLL.Post(
+                r("ItemID"),
+                docDate,
+                0,
+                r("Qty"),
+                r("Rate"),
+                docNo)
+
+        Next
+
+        ' LEDGER POSTING
+        AccountsBLL.Post(1001, docDate, taxable + gstAmt, 0, docNo) ' Debtor
+        AccountsBLL.Post(4001, docDate, 0, taxable, docNo)          ' Sales
+
+        GSTBLL.PostSalesGST(docDate, taxable, docId, docNo)
+
+        Return docId
+    End Function
+
+End Class
+
+*****************************************SERVER-SIDE VALIDATION + FY LOCK (MANDATORY)
+Financial Year BLL
+----------------------
+Public Class FinancialYearBLL
+
+    Public Shared Function IsDateAllowed(d As Date) As Boolean
+        Dim obj = SqlHelper.ExecuteScalar(
+            My.Settings.ERPConn,
+            CommandType.Text,
+            "SELECT 1 FROM mst.FinancialYear
+             WHERE @D BETWEEN FromDate AND ToDate
+             AND IsLocked=0",
+            New SqlParameter("@D", d))
+
+        Return obj IsNot Nothing
+    End Function
+
+End Class
+*******************************************VALIDATION RULES (REAL ERP)
+If lines.Rows.Count = 0 Then
+    Throw New Exception("No items entered")
+End If
+
+If taxable <= 0 Then
+    Throw New Exception("Invalid invoice amount")
+End If
+
+*******************************************BOOTSTRAP UI – ASP.NET MVC (VB)
+🔹 Controller
+------------------
+Public Class SalesController
+    Inherits Controller
+
+    Function Entry() As ActionResult
+        ViewBag.Party = SqlHelper.ExecuteDT("SELECT PartyID,PartyName FROM mst.Party")
+        ViewBag.Item = SqlHelper.ExecuteDT("SELECT ItemID,ItemName FROM mst.Item")
+        ViewBag.GST = SqlHelper.ExecuteDT("SELECT GSTID,GSTCode FROM acc.GSTSlab")
+        Return View()
+    End Function
+
+    <HttpPost>
+    Function SaveInvoice(data As String) As ActionResult
+        ' JSON to DataTable convert
+        ' Call SalesBLL.SaveInvoice()
+        Return Json(New With {.success = True})
+    End Function
+End Class
+
+***************************************
+Bootstrap View (Entry.vbhtml)
+--------------------------------
+<div class="container">
+  <select id="PartyID" class="form-control"></select>
+
+  <table class="table table-bordered" id="tbl">
+    <thead>
+      <tr>
+        <th>Item</th><th>Qty</th><th>Rate</th>
+        <th>GST</th><th>Amount</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <button class="btn btn-primary" onclick="save()">Save</button>
+</div>
+
+*****************************************JavaScript (Grid + Calc)
+function addRow() {
+  $("#tbl tbody").append(`
+    <tr>
+      <td><select class="item"></select></td>
+      <td><input class="qty" /></td>
+      <td><input class="rate" /></td>
+      <td><select class="gst"></select></td>
+      <td class="amt"></td>
+    </tr>`);
+}
+******************************************AUTO GST JSON GENERATION (GSTR-1 READY)
+SELECT 
+    h.DocNo,
+    h.DocDate,
+    h.Taxable,
+    g.CGST,
+    g.SGST
+FROM trx.SalesH h
+JOIN trx.SalesL l ON l.DocID=h.DocID
+JOIN acc.GSTSlab g ON g.GSTID=l.GSTID
+WHERE h.DocID=@DocID
+******************************************VB.NET – GST JSON
+Dim gstJson As String = "{
+  ""gstin"": ""29ABCDE1234F1Z5"",
+  ""fp"": ""042025"",
+  ""b2cs"": [{
+    ""txval"": " & taxable & ",
+    ""cgst"": " & cgst & ",
+    ""sgst"": " & sgst & "
+  }]
+}"
+File.WriteAllText("GSTR1_" & docNo & ".json", gstJson)
+
+*******************************************
+*******************************************
+*******************************************PURCHASE INVOICE (WITH TDS) – FULL FLOW
+🔹 TABLES
+-----------------------------
+-- Purchase Header
+CREATE TABLE trx.PurchaseH (
+    DocID INT IDENTITY PRIMARY KEY,
+    DocNo VARCHAR(30),
+    DocDate DATE,
+    SupplierID INT,
+    Taxable DECIMAL(18,2),
+    GSTAmount DECIMAL(18,2),
+    TDSAmount DECIMAL(18,2),
+    NetAmount DECIMAL(18,2),
+    FYID INT
+)
+
+-- Purchase Lines
+CREATE TABLE trx.PurchaseL (
+    LineID INT IDENTITY PRIMARY KEY,
+    DocID INT,
+    ItemID INT,
+    Qty DECIMAL(18,3),
+    Rate DECIMAL(18,2),
+    Amount DECIMAL(18,2),
+    GSTID INT
+)
+*********************************************VB.NET – PURCHASE SAVE (WITH AVG PRICE + TDS)
+Public Class PurchaseBLL
+
+    Public Shared Sub SaveInvoice(
+        docNo As String,
+        docDate As Date,
+        supplierId As Integer,
+        fyId As Integer,
+        lines As DataTable,
+        tdsRate As Decimal)
+
+        If Not FinancialYearBLL.IsDateAllowed(docDate) Then
+            Throw New Exception("Financial Year Locked")
+        End If
+
+        Dim taxable, gstAmt As Decimal
+
+        For Each r As DataRow In lines.Rows
+            taxable += r("Amount")
+            gstAmt += r("GSTAmount")
+        Next
+
+        Dim tdsAmt As Decimal = taxable * tdsRate / 100
+
+        Dim docId = SqlHelper.ExecuteScalar(
+            Conn, CommandType.Text,
+            "INSERT INTO trx.PurchaseH
+             VALUES(@N,@D,@S,@T,@G,@TD,@N2,@FY);
+             SELECT SCOPE_IDENTITY()",
+            New SqlParameter("@N", docNo),
+            New SqlParameter("@D", docDate),
+            New SqlParameter("@S", supplierId),
+            New SqlParameter("@T", taxable),
+            New SqlParameter("@G", gstAmt),
+            New SqlParameter("@TD", tdsAmt),
+            New SqlParameter("@N2", taxable + gstAmt - tdsAmt),
+            New SqlParameter("@FY", fyId))
+
+        For Each r As DataRow In lines.Rows
+            ' Save line
+            ' Stock IN + Moving Avg update
+            StockBLL.Post(r("ItemID"), docDate, r("Qty"), 0, r("Rate"), docNo)
+        Next
+
+        ' Ledger
+        AccountsBLL.Post(5001, docDate, taxable, 0, docNo)        ' Purchase
+        AccountsBLL.Post(2101, docDate, 0, tdsAmt, docNo)         ' TDS Payable
+        AccountsBLL.Post(1002, docDate, 0, taxable + gstAmt, docNo) ' Supplier
+    End Sub
+End Class
+****************************************SALES RETURN / CREDIT NOTE
+🔹 DATABASE
+---------------
+CREATE TABLE trx.SalesReturnH (
+    ReturnID INT IDENTITY PRIMARY KEY,
+    DocNo VARCHAR(30),
+    DocDate DATE,
+    RefInvoiceNo VARCHAR(30),
+    PartyID INT,
+    Amount DECIMAL(18,2)
+)
+
+****************************************VB.NET – SALES RETURN LOGIC
+Public Shared Sub SaveSalesReturn(
+    refInvNo As String,
+    itemId As Integer,
+    qty As Decimal,
+    rate As Decimal)
+
+    ' Stock IN
+    StockBLL.Post(itemId, Today, qty, 0, rate, refInvNo)
+
+    ' Reverse Ledger
+    AccountsBLL.Post(4001, Today, 0, qty * rate, refInvNo) ' Sales
+    AccountsBLL.Post(1001, Today, qty * rate, 0, refInvNo) ' Debtor
+End Sub
+********************************************INVOICE PDF + QR CODE (WINFORMS + MVC)
+PDF GENERATION (WinForms)
+---------------------------
+Dim doc As New iTextSharp.text.Document()
+PdfWriter.GetInstance(doc, New FileStream("Invoice.pdf", FileMode.Create))
+doc.Open()
+doc.Add(New Paragraph("TAX INVOICE"))
+doc.Add(New Paragraph("Invoice No: " & docNo))
+doc.Close()
+
+*************************************************GST QR CODE
+Dim qrText As String =
+"GSTIN:29ABCDE1234F1Z5|INV:" & docNo & "|AMT:" & netAmt
+
+Dim qr = New QRCoder.QRCodeGenerator()
+Dim data = qr.CreateQrCode(qrText, QRCoder.QRCodeGenerator.ECCLevel.Q)
+Dim code = New QRCoder.QRCode(data)
+PictureBox1.Image = code.GetGraphic(5)
+**************************************************
+GSTR-1 / 3B AUTO JSON GENERATOR (MONTHLY)
+🔹 SQL – MONTHLY GST DATA
+--------------------------------
+SELECT 
+    SUM(Taxable) Taxable,
+    SUM(GSTAmount)/2 CGST,
+    SUM(GSTAmount)/2 SGST
+FROM trx.SalesH
+WHERE MONTH(DocDate)=@M AND YEAR(DocDate)=@Y
+
+***********************************************VB.NET – JSON GENERATOR
+Dim json As String =
+"{
+  ""gstin"":""29ABCDE1234F1Z5"",
+  ""fp"":""" & mmYYYY & """,
+  ""sup_details"":{
+    ""osup_det"":{
+      ""txval"":" & taxable & ",
+      ""cgst"":" & cgst & ",
+      ""sgst"":" & sgst & "
+    }
+  }
+}"
+
+File.WriteAllText("GSTR3B_" & mmYYYY & ".json", json)
+********************************************************
+PRODUCTION DEPLOYMENT CHECKLIST (REAL ERP)
+🔒 SECURITY
+
+✔ Parameterized SQL only
+✔ FY lock enforced server-side
+✔ Role-based menu rights
+✔ No delete – only reverse
+
+🗄 DATABASE
+
+✔ Daily auto backup
+✔ Weekly full + differential
+✔ Index on DocDate, ItemID
+
+🧾 ACCOUNTING
+
+✔ Trial balance must match
+✔ GST ledgers reconciled
+✔ Stock vs GL check
+
+🖥 APPLICATION
+
+✔ EXE signed
+✔ Error logging enabled
+✔ Printer mapped test
+
+📤 GST
+
+✔ JSON validated
+✔ HSN summary verified
+✔ Round-off accounted
+
+***************************************
+
+
+
+
+
+
+
+
+

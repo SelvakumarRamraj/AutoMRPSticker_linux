@@ -1,0 +1,3742 @@
+CREATE DATABASE MiniERP;
+GO
+USE MiniERP;
+
+
+CREATE TABLE Users (
+UserId INT IDENTITY PRIMARY KEY,
+UserName NVARCHAR(50),
+Password NVARCHAR(50)
+);
+
+
+CREATE TABLE Items (
+ItemId INT IDENTITY PRIMARY KEY,
+ItemName NVARCHAR(100),
+Rate DECIMAL(10,2)
+);
+
+
+CREATE TABLE SalesMaster (
+SalesId INT IDENTITY PRIMARY KEY,
+SalesDate DATETIME,
+UserId INT
+);
+
+
+CREATE TABLE SalesDetail (
+DetailId INT IDENTITY PRIMARY KEY,
+SalesId INT,
+ItemId INT,
+Qty INT,
+Rate DECIMAL(10,2)
+);
+
+**************************************Web.config
+<connectionStrings>
+<add name="ERPDB"
+connectionString="Data Source=.;Initial Catalog=MiniERP;Integrated Security=True"
+providerName="System.Data.SqlClient" />
+</connectionStrings>
+
+*******************************Sqlhelper
+Imports System.Data
+Imports System.Data.SqlClient
+Imports System.Configuration
+
+
+Public Class SqlHelper
+
+
+Private Shared ReadOnly ConnStr As String =
+ConfigurationManager.ConnectionStrings("ERPDB").ConnectionString
+
+
+Public Shared Function ExecuteNonQuery(cmdText As String,
+trans As SqlTransaction,
+ParamArray params() As SqlParameter) As Integer
+Using cmd As New SqlCommand(cmdText, trans.Connection, trans)
+If params IsNot Nothing Then cmd.Parameters.AddRange(params)
+Return cmd.ExecuteNonQuery()
+End Using
+End Function
+
+
+Public Shared Function ExecuteDataTable(cmdText As String,
+ParamArray params() As SqlParameter) As DataTable
+Using con As New SqlConnection(ConnStr)
+Using cmd As New SqlCommand(cmdText, con)
+If params IsNot Nothing Then cmd.Parameters.AddRange(params)
+Using da As New SqlDataAdapter(cmd)
+Dim dt As New DataTable
+da.Fill(dt)
+Return dt
+End Using
+End Using
+End Using
+End Function
+
+
+Public Shared Function GetConnection() As SqlConnection
+Dim con As New SqlConnection(ConnStr)
+con.Open()
+Return con
+End Function
+
+
+End Class
+
+**********************************************SalesDAL
+Imports System.Data.SqlClient
+
+
+Public Class SalesDAL
+
+
+Public Shared Function SaveSales(userId As Integer,
+items As DataTable) As Boolean
+Using con As SqlConnection = SqlHelper.GetConnection()
+Dim trans As SqlTransaction = con.BeginTransaction()
+
+
+Try
+' Insert Master
+Dim cmdMaster As String =
+"INSERT INTO SalesMaster(SalesDate,UserId)
+VALUES(GETDATE(),@UserId);
+SELECT SCOPE_IDENTITY();"
+
+
+Dim salesId As Integer
+Using cmd As New SqlCommand(cmdMaster, con, trans)
+cmd.Parameters.AddWithValue("@UserId", userId)
+salesId = Convert.ToInt32(cmd.ExecuteScalar())
+End Using
+
+
+' Insert Details
+For Each r As DataRow In items.Rows
+Dim cmdDetail As String =
+"INSERT INTO SalesDetail(SalesId,ItemId,Qty,Rate)
+VALUES(@SalesId,@ItemId,@Qty,@Rate)"
+
+
+SqlHelper.ExecuteNonQuery(cmdDetail, trans,
+New SqlParameter("@SalesId", salesId),
+New SqlParameter("@ItemId", r("ItemId")),
+New SqlParameter("@Qty", r("Qty")),
+New SqlParameter("@Rate", r("Rate")))
+Next
+
+
+trans.Commit()
+Return True
+
+
+Catch ex As Exception
+trans.Rollback()
+Throw
+End Try
+End Using
+End Function
+
+
+End Class
+
+****************************SalesController
+Imports System.Web.Mvc
+
+
+Public Class SalesController
+Inherits Controller
+
+
+Public Function Create() As ActionResult
+Return View()
+End Function
+
+
+<HttpPost>
+Public Function Create(model As SalesViewModel) As ActionResult
+Dim dt As New DataTable
+dt.Columns.Add("ItemId", GetType(Integer))
+dt.Columns.Add("Qty", GetType(Integer))
+dt.Columns.Add("Rate", GetType(Decimal))
+
+
+For Each i In model.Items
+dt.Rows.Add(i.ItemId, i.Qty, i.Rate)
+Next
+
+
+SalesDAL.SaveSales(1, dt)
+ViewBag.Msg = "Sales Saved Successfully"
+Return View()
+End Function
+
+
+End Class
+
+**************************************SalesviewModel
+Public Class SalesViewModel
+Public Property Items As List(Of SalesItemVM)
+End Class
+
+
+Public Class SalesItemVM
+Public Property ItemId As Integer
+Public Property Qty As Integer
+Public Property Rate As Decimal
+End Class
+
+********************************************View Create.vbhtml
+@ModelType SalesViewModel
+
+
+<h2>Sales Entry</h2>
+
+
+<form method="post">
+<input name="Items[0].ItemId" placeholder="ItemId" />
+<input name="Items[0].Qty" placeholder="Qty" />
+<input name="Items[0].Rate" placeholder="Rate" />
+
+
+<br /><br />
+<button type="submit">Save</button>
+</form>
+
+
+@If ViewBag.Msg IsNot Nothing Then
+<div>@ViewBag.Msg</div>
+End If
+
+**************************************************
+******************************************************Vb.net ERP
+Login and Rold
+----------------------------
+CREATE TABLE Users (
+  UserId INT IDENTITY PRIMARY KEY,
+  UserName NVARCHAR(50),
+  Password NVARCHAR(50),
+  RoleId INT
+);
+
+CREATE TABLE Roles (
+  RoleId INT IDENTITY PRIMARY KEY,
+  RoleName NVARCHAR(50)
+);
+
+CREATE TABLE RoleMenus (
+  RoleId INT,
+  MenuCode NVARCHAR(50)
+);
+
+*********************************Party and Item Master
+CREATE TABLE PartyGroup (
+  GroupId INT IDENTITY PRIMARY KEY,
+  GroupName NVARCHAR(100)
+);
+
+CREATE TABLE Party (
+  PartyId INT IDENTITY PRIMARY KEY,
+  GroupId INT,
+  PartyName NVARCHAR(150)
+);
+
+CREATE TABLE ItemGroup (
+  GroupId INT IDENTITY PRIMARY KEY,
+  GroupName NVARCHAR(100)
+);
+
+CREATE TABLE Item (
+  ItemId INT IDENTITY PRIMARY KEY,
+  GroupId INT,
+  ItemName NVARCHAR(150),
+  UOM NVARCHAR(20)
+);
+*******************************************Posting Period
+CREATE TABLE PostingPeriod (
+  PeriodId INT IDENTITY PRIMARY KEY,
+  FromDate DATE,
+  ToDate DATE,
+  IsOpen BIT
+);
+
+CREATE TABLE DocSeries (
+  DocType NVARCHAR(50),
+  Prefix NVARCHAR(10),
+  LastNo INT
+);
+
+*********************************Purchase order
+CREATE TABLE PO_Header (
+  POId INT IDENTITY PRIMARY KEY,
+  PONo NVARCHAR(30),
+  PODate DATE,
+  PartyId INT
+);
+
+CREATE TABLE PO_Detail (
+  POId INT,
+  ItemId INT,
+  Qty DECIMAL(18,2),
+  Rate DECIMAL(18,2)
+);
+
+********************************Stock Table
+CREATE TABLE Stock (
+  ItemId INT PRIMARY KEY,
+  Qty DECIMAL(18,2)
+);
+
+******************************Purchase save + Stock
+Public Shared Sub SavePurchase(h As DataRow, dt As DataTable)
+
+    Using con = SqlHelper.GetConnection()
+        Dim tr = con.BeginTransaction()
+
+        Try
+            Dim pid As Integer =
+              SqlHelper.ExecuteScalar(
+                "INSERT INTO PurchaseHeader(PDate,PartyId)
+                 VALUES(@D,@P); SELECT SCOPE_IDENTITY()",
+                tr,
+                SqlHelper.P("@D", h("Date")),
+                SqlHelper.P("@P", h("PartyId")))
+
+            For Each r As DataRow In dt.Rows
+
+                SqlHelper.ExecuteNonQuery(
+                  "INSERT INTO PurchaseDetail VALUES(@H,@I,@Q,@R)",
+                  tr,
+                  SqlHelper.P("@H", pid),
+                  SqlHelper.P("@I", r("ItemId")),
+                  SqlHelper.P("@Q", r("Qty")),
+                  SqlHelper.P("@R", r("Rate")))
+
+                ' STOCK UPDATE
+                SqlHelper.ExecuteNonQuery(
+                  "MERGE Stock t
+                   USING (SELECT @I ItemId,@Q Qty) s
+                   ON t.ItemId=s.ItemId
+                   WHEN MATCHED THEN UPDATE SET Qty=Qty+@Q
+                   WHEN NOT MATCHED THEN INSERT VALUES(@I,@Q)",
+                  tr,
+                  SqlHelper.P("@I", r("ItemId")),
+                  SqlHelper.P("@Q", r("Qty")))
+            Next
+
+            tr.Commit()
+
+        Catch
+            tr.Rollback()
+            Throw
+        End Try
+    End Using
+End Sub
+
+**************************************Purchase order
+CREATE TABLE PO_Header (
+    POId INT IDENTITY PRIMARY KEY,
+    PONo NVARCHAR(30),
+    PODate DATE,
+    PartyId INT,
+    Total DECIMAL(18,2)
+);
+
+CREATE TABLE PO_Detail (
+    POId INT,
+    ItemId INT,
+    Qty DECIMAL(18,2),
+    Rate DECIMAL(18,2),
+    Amount AS (Qty * Rate)
+);
+***********************************goods receipt PO
+CREATE TABLE GRPO_Header (
+    GRPOId INT IDENTITY PRIMARY KEY,
+    GRPONo NVARCHAR(30),
+    GRPODate DATE,
+    POId INT
+);
+
+CREATE TABLE GRPO_Detail (
+    GRPOId INT,
+    ItemId INT,
+    Qty DECIMAL(18,2)
+);
+
+*********************************Purchase Invoice
+CREATE TABLE Purchase_Header (
+    PurchaseId INT IDENTITY PRIMARY KEY,
+    InvoiceNo NVARCHAR(30),
+    InvoiceDate DATE,
+    PartyId INT,
+    Total DECIMAL(18,2)
+);
+
+CREATE TABLE Purchase_Detail (
+    PurchaseId INT,
+    ItemId INT,
+    Qty DECIMAL(18,2),
+    Rate DECIMAL(18,2)
+);
+
+*******************************************Stock Table
+CREATE TABLE Stock (
+    ItemId INT PRIMARY KEY,
+    Qty DECIMAL(18,2)
+);
+
+********************************************SqlHelper
+Public Class SqlHelper
+
+    Private Shared ReadOnly conStr As String =
+        ConfigurationManager.ConnectionStrings("ERP").ConnectionString
+
+    Public Shared Function GetConnection() As SqlConnection
+        Dim con As New SqlConnection(conStr)
+        con.Open()
+        Return con
+    End Function
+
+    Public Shared Function P(name As String, value As Object) As SqlParameter
+        Return New SqlParameter(name, If(value, DBNull.Value))
+    End Function
+
+    Public Shared Function ExecuteScalar(sql As String, tr As SqlTransaction,
+                                         ParamArray p() As SqlParameter) As Object
+        Using cmd As New SqlCommand(sql, tr.Connection, tr)
+            cmd.Parameters.AddRange(p)
+            Return cmd.ExecuteScalar()
+        End Using
+    End Function
+
+    Public Shared Sub ExecuteNonQuery(sql As String, tr As SqlTransaction,
+                                      ParamArray p() As SqlParameter)
+        Using cmd As New SqlCommand(sql, tr.Connection, tr)
+            cmd.Parameters.AddRange(p)
+            cmd.ExecuteNonQuery()
+        End Using
+    End Sub
+
+    Public Shared Function ExecuteDataTable(sql As String) As DataTable
+        Using con = GetConnection()
+            Using da As New SqlDataAdapter(sql, con)
+                Dim dt As New DataTable
+                da.Fill(dt)
+                Return dt
+            End Using
+        End Using
+    End Function
+
+End Class
+
+**********************************************Purchase order DAL
+Public Class PODAL
+
+    Public Shared Function Save(h As DataTable, d As DataTable) As Integer
+
+        Using con = SqlHelper.GetConnection()
+            Dim tr = con.BeginTransaction()
+
+            Try
+                Dim poId As Integer =
+                    SqlHelper.ExecuteScalar(
+                        "INSERT INTO PO_Header(PONo,PODate,PartyId,Total)
+                         VALUES(@No,@Dt,@P,@T); SELECT SCOPE_IDENTITY()",
+                        tr,
+                        SqlHelper.P("@No", h.Rows(0)("PONo")),
+                        SqlHelper.P("@Dt", h.Rows(0)("PODate")),
+                        SqlHelper.P("@P", h.Rows(0)("PartyId")),
+                        SqlHelper.P("@T", h.Rows(0)("Total")))
+
+                For Each r As DataRow In d.Rows
+                    SqlHelper.ExecuteNonQuery(
+                        "INSERT INTO PO_Detail VALUES(@H,@I,@Q,@R)",
+                        tr,
+                        SqlHelper.P("@H", poId),
+                        SqlHelper.P("@I", r("ItemId")),
+                        SqlHelper.P("@Q", r("Qty")),
+                        SqlHelper.P("@R", r("Rate")))
+                Next
+
+                tr.Commit()
+                Return poId
+
+            Catch
+                tr.Rollback()
+                Throw
+            End Try
+        End Using
+
+    End Function
+
+End Class
+
+********************************************GRPO DAL
+Public Class GRPODAL
+
+    Public Shared Sub Save(grpoH As DataRow, grpoD As DataTable)
+
+        Using con = SqlHelper.GetConnection()
+            Dim tr = con.BeginTransaction()
+
+            Try
+                Dim id As Integer =
+                    SqlHelper.ExecuteScalar(
+                        "INSERT INTO GRPO_Header(GRPONo,GRPODate,POId)
+                         VALUES(@N,@D,@P); SELECT SCOPE_IDENTITY()",
+                        tr,
+                        SqlHelper.P("@N", grpoH("GRPONo")),
+                        SqlHelper.P("@D", grpoH("Date")),
+                        SqlHelper.P("@P", grpoH("POId")))
+
+                For Each r As DataRow In grpoD.Rows
+
+                    SqlHelper.ExecuteNonQuery(
+                        "INSERT INTO GRPO_Detail VALUES(@H,@I,@Q)",
+                        tr,
+                        SqlHelper.P("@H", id),
+                        SqlHelper.P("@I", r("ItemId")),
+                        SqlHelper.P("@Q", r("Qty")))
+
+                    ' STOCK IN
+                    SqlHelper.ExecuteNonQuery(
+                        "MERGE Stock t
+                         USING (SELECT @I ItemId,@Q Qty) s
+                         ON t.ItemId=s.ItemId
+                         WHEN MATCHED THEN UPDATE SET Qty=Qty+@Q
+                         WHEN NOT MATCHED THEN INSERT VALUES(@I,@Q)",
+                        tr,
+                        SqlHelper.P("@I", r("ItemId")),
+                        SqlHelper.P("@Q", r("Qty")))
+                Next
+
+                tr.Commit()
+
+            Catch
+                tr.Rollback()
+                Throw
+            End Try
+        End Using
+    End Sub
+
+End Class
+
+******************************************Purchase invoice DAL
+Public Class PurchaseDAL
+
+    Public Shared Sub Save(h As DataRow, d As DataTable)
+
+        Using con = SqlHelper.GetConnection()
+            Dim tr = con.BeginTransaction()
+
+            Try
+                Dim pid =
+                    SqlHelper.ExecuteScalar(
+                        "INSERT INTO Purchase_Header(InvoiceNo,InvoiceDate,PartyId,Total)
+                         VALUES(@N,@D,@P,@T); SELECT SCOPE_IDENTITY()",
+                        tr,
+                        SqlHelper.P("@N", h("InvoiceNo")),
+                        SqlHelper.P("@D", h("Date")),
+                        SqlHelper.P("@P", h("PartyId")),
+                        SqlHelper.P("@T", h("Total")))
+
+                For Each r As DataRow In d.Rows
+
+                    SqlHelper.ExecuteNonQuery(
+                        "INSERT INTO Purchase_Detail VALUES(@H,@I,@Q,@R)",
+                        tr,
+                        SqlHelper.P("@H", pid),
+                        SqlHelper.P("@I", r("ItemId")),
+                        SqlHelper.P("@Q", r("Qty")),
+                        SqlHelper.P("@R", r("Rate")))
+
+                    ' STOCK UPDATE
+                    SqlHelper.ExecuteNonQuery(
+                        "UPDATE Stock SET Qty = Qty + @Q WHERE ItemId=@I",
+                        tr,
+                        SqlHelper.P("@Q", r("Qty")),
+                        SqlHelper.P("@I", r("ItemId")))
+                Next
+
+                tr.Commit()
+
+            Catch
+                tr.Rollback()
+                Throw
+            End Try
+        End Using
+    End Sub
+
+End Class
+
+*********************************************Purchase controller
+Public Class PurchaseController
+    Inherits Controller
+
+    Public Function Index() As ActionResult
+        ViewBag.Items = ItemDAL.GetAll()
+        ViewBag.Parties = PartyDAL.GetAll()
+        Return View()
+    End Function
+
+    <HttpPost>
+    Public Function Save(model As PurchaseVM) As JsonResult
+        PurchaseDAL.Save(model.Header, model.Detail)
+        Return Json(New With {.success = True})
+    End Function
+End Class
+
+***************************************Stock ledger
+SELECT i.ItemName, s.Qty
+FROM Stock s
+JOIN Item i ON s.ItemId = i.ItemId
+ORDER BY i.ItemName
+
+****************************************Printing
+If success Then
+    RawPrinter.Print("TSC TE200", tsplString)
+End If
+
+****************************docnument numbering series
+CREATE TABLE DocumentSeries (
+    DocType NVARCHAR(50) PRIMARY KEY,
+    Prefix NVARCHAR(10),
+    LastNo INT
+);
+
+INSERT INTO DocumentSeries VALUES
+('PO', 'PO-', 1000),
+('GRPO', 'GRN-', 500),
+('PURCHASE', 'PINV-', 200);
+
+**********************Multi user Safe Sql
+UPDATE DocumentSeries WITH (UPDLOCK, HOLDLOCK)
+SET LastNo = LastNo + 1
+OUTPUT INSERTED.Prefix + CAST(INSERTED.LastNo AS NVARCHAR)
+WHERE DocType = @DocType
+
+***************************** generate next number
+Public Class DocNoDAL
+
+    Public Shared Function GetNextNo(docType As String,
+                                     tr As SqlTransaction) As String
+
+        Dim sql As String =
+        "UPDATE DocumentSeries WITH (UPDLOCK, HOLDLOCK)
+         SET LastNo = LastNo + 1
+         OUTPUT INSERTED.Prefix + CAST(INSERTED.LastNo AS NVARCHAR)
+         WHERE DocType = @T"
+
+        Return SqlHelper.ExecuteScalar(sql, tr,
+               SqlHelper.P("@T", docType)).ToString()
+
+    End Function
+
+End Class
+
+*******************************************SavePO
+Public Shared Function SavePO(h As DataTable,
+                              d As DataTable) As Integer
+
+    Using con = SqlHelper.GetConnection()
+        Dim tr = con.BeginTransaction()
+
+        Try
+            ' 🔐 AUTO PO NUMBER
+            Dim poNo As String = DocNoDAL.GetNextNo("PO", tr)
+
+            Dim poId As Integer =
+                SqlHelper.ExecuteScalar(
+                "INSERT INTO PO_Header(PONo,PODate,PartyId,Total)
+                 VALUES(@N,@D,@P,@T);
+                 SELECT SCOPE_IDENTITY()",
+                tr,
+                SqlHelper.P("@N", poNo),
+                SqlHelper.P("@D", h.Rows(0)("PODate")),
+                SqlHelper.P("@P", h.Rows(0)("PartyId")),
+                SqlHelper.P("@T", h.Rows(0)("Total")))
+
+            For Each r As DataRow In d.Rows
+                SqlHelper.ExecuteNonQuery(
+                "INSERT INTO PO_Detail VALUES(@H,@I,@Q,@R)",
+                tr,
+                SqlHelper.P("@H", poId),
+                SqlHelper.P("@I", r("ItemId")),
+                SqlHelper.P("@Q", r("Qty")),
+                SqlHelper.P("@R", r("Rate")))
+            Next
+
+            tr.Commit()
+            Return poId
+
+        Catch
+            tr.Rollback()
+            Throw
+        End Try
+    End Using
+End Function
+
+
+*************************************************
+Dim grpoNo As String = DocNoDAL.GetNextNo("GRPO", tr)
+Dim invNo As String = DocNoDAL.GetNextNo("PURCHASE", tr)
+***************************************
+
+CREATE TABLE PostingPeriod (
+    PeriodId INT IDENTITY PRIMARY KEY,
+    FromDate DATE,
+    ToDate DATE,
+    IsOpen BIT
+);
+
+SELECT COUNT(*)
+FROM PostingPeriod
+WHERE @DocDate BETWEEN FromDate AND ToDate
+AND IsOpen = 1
+
+******************************************
+
+Public Class PostingPeriodDAL
+
+    Public Shared Sub Validate(docDate As DateTime, tr As SqlTransaction)
+
+        Dim sql As String =
+        "SELECT COUNT(*) FROM PostingPeriod
+         WHERE @D BETWEEN FromDate AND ToDate AND IsOpen=1"
+
+        Dim cnt As Integer =
+            Convert.ToInt32(SqlHelper.ExecuteScalar(sql, tr,
+                SqlHelper.P("@D", docDate)))
+
+        If cnt = 0 Then
+            Throw New ApplicationException("Posting period closed")
+        End If
+
+    End Sub
+
+End Class
+
+PostingPeriodDAL.Validate(h("PODate"), tr)
+
+********************************************** sales series
+INSERT INTO DocumentSeries VALUES
+('SO', 'SO-', 1000),
+('DELIVERY', 'DN-', 2000),
+('SALES', 'INV-', 3000);
+*******************************************save sales
+
+Public Shared Function SaveSales(h As DataRow,
+                                 d As DataTable) As Integer
+
+    Using con = SqlHelper.GetConnection()
+        Dim tr = con.BeginTransaction()
+
+        Try
+            ' PERIOD CHECK
+            PostingPeriodDAL.Validate(h("SalesDate"), tr)
+
+            ' DOC NUMBER
+            Dim invNo As String =
+                DocNoDAL.GetNextNo("SALES", tr)
+
+            Dim sid As Integer =
+                SqlHelper.ExecuteScalar(
+                "INSERT INTO Sales_Header
+                 (InvoiceNo,InvoiceDate,PartyId,Total)
+                 VALUES(@N,@D,@P,@T);
+                 SELECT SCOPE_IDENTITY()",
+                tr,
+                SqlHelper.P("@N", invNo),
+                SqlHelper.P("@D", h("SalesDate")),
+                SqlHelper.P("@P", h("PartyId")),
+                SqlHelper.P("@T", h("Total")))
+
+            For Each r As DataRow In d.Rows
+
+                ' STOCK OUT
+                SqlHelper.ExecuteNonQuery(
+                "UPDATE Stock SET Qty = Qty - @Q
+                 WHERE ItemId=@I AND Qty >= @Q",
+                tr,
+                SqlHelper.P("@Q", r("Qty")),
+                SqlHelper.P("@I", r("ItemId")))
+
+                ' PREVENT NEGATIVE STOCK
+                If SqlHelper.ExecuteScalar(
+                    "SELECT @@ROWCOUNT", tr) = 0 Then
+                    Throw New ApplicationException("Insufficient stock")
+                End If
+
+                SqlHelper.ExecuteNonQuery(
+                "INSERT INTO Sales_Detail VALUES(@H,@I,@Q,@R)",
+                tr,
+                SqlHelper.P("@H", sid),
+                SqlHelper.P("@I", r("ItemId")),
+                SqlHelper.P("@Q", r("Qty")),
+                SqlHelper.P("@R", r("Rate")))
+            Next
+
+            tr.Commit()
+            Return sid
+
+        Catch
+            tr.Rollback()
+            Throw
+        End Try
+    End Using
+End Function
+***********************************add status column
+ALTER TABLE Sales_Header ADD IsCancelled BIT DEFAULT 0;
+ALTER TABLE Purchase_Header ADD IsCancelled BIT DEFAULT 0;
+
+*******************************************sales cancel logic
+Public Shared Sub CancelSales(salesId As Integer)
+
+    Using con = SqlHelper.GetConnection()
+        Dim tr = con.BeginTransaction()
+
+        Try
+            Dim dt = SqlHelper.ExecuteDataTable(
+                "SELECT ItemId,Qty FROM Sales_Detail WHERE SalesId=" & salesId)
+
+            ' RESTORE STOCK
+            For Each r As DataRow In dt.Rows
+                SqlHelper.ExecuteNonQuery(
+                "UPDATE Stock SET Qty = Qty + @Q WHERE ItemId=@I",
+                tr,
+                SqlHelper.P("@Q", r("Qty")),
+                SqlHelper.P("@I", r("ItemId")))
+            Next
+
+            ' MARK CANCELLED
+            SqlHelper.ExecuteNonQuery(
+                "UPDATE Sales_Header SET IsCancelled=1 WHERE SalesId=@I",
+                tr,
+                SqlHelper.P("@I", salesId))
+
+            tr.Commit()
+
+        Catch
+            tr.Rollback()
+            Throw
+        End Try
+    End Using
+End Sub
+
+*************************************************Item Transfer
+CREATE TABLE Warehouse (
+    WhId INT IDENTITY PRIMARY KEY,
+    WhName NVARCHAR(50)
+);
+
+CREATE TABLE Stock (
+    ItemId INT,
+    WhId INT,
+    Qty DECIMAL(18,2),
+    PRIMARY KEY(ItemId, WhId)
+);
+
+CREATE TABLE ItemTransfer_Header (
+    TransferId INT IDENTITY PRIMARY KEY,
+    TransferNo NVARCHAR(30),
+    TransferDate DATE,
+    FromWh INT,
+    ToWh INT,
+    IsCancelled BIT DEFAULT 0
+);
+
+CREATE TABLE ItemTransfer_Detail (
+    TransferId INT,
+    ItemId INT,
+    Qty DECIMAL(18,2)
+);
+
+CREATE TABLE ItemStatePrice (
+    PriceId INT IDENTITY PRIMARY KEY,
+    ItemId INT NOT NULL,
+    StateCode NVARCHAR(10),        -- e.g. TN, KA, MH
+    StateName NVARCHAR(50),
+    Price DECIMAL(10,2),
+    EffectiveFrom DATE,
+    EffectiveTo DATE NULL,
+    Active NVARCHAR(1) DEFAULT 'Y',
+    CreatedDate DATETIME DEFAULT GETDATE(),
+
+    CONSTRAINT FK_ItemStatePrice_ItemMaster
+        FOREIGN KEY (ItemId) REFERENCES ItemMaster(ItemId)
+);
+
+
+*******************************************Item Transfer DAL
+Public Class ItemTransferDAL
+
+    Public Shared Sub Save(h As DataRow, d As DataTable)
+
+        Using con = SqlHelper.GetConnection()
+            Dim tr = con.BeginTransaction()
+
+            Try
+                ' Posting period
+                PostingPeriodDAL.Validate(h("TransferDate"), tr)
+
+                ' Document No
+                Dim docNo = DocNoDAL.GetNextNo("TRANSFER", tr)
+
+                Dim tid =
+                    SqlHelper.ExecuteScalar(
+                    "INSERT INTO ItemTransfer_Header
+                     (TransferNo,TransferDate,FromWh,ToWh)
+                     VALUES(@N,@D,@F,@T);
+                     SELECT SCOPE_IDENTITY()",
+                    tr,
+                    SqlHelper.P("@N", docNo),
+                    SqlHelper.P("@D", h("TransferDate")),
+                    SqlHelper.P("@F", h("FromWh")),
+                    SqlHelper.P("@T", h("ToWh")))
+
+                For Each r As DataRow In d.Rows
+
+                    ' STOCK OUT (FROM WH)
+                    SqlHelper.ExecuteNonQuery(
+                    "UPDATE Stock SET Qty = Qty - @Q
+                     WHERE ItemId=@I AND WhId=@W AND Qty>=@Q",
+                    tr,
+                    SqlHelper.P("@Q", r("Qty")),
+                    SqlHelper.P("@I", r("ItemId")),
+                    SqlHelper.P("@W", h("FromWh")))
+
+                    If SqlHelper.ExecuteScalar("SELECT @@ROWCOUNT", tr) = 0 Then
+                        Throw New ApplicationException("Insufficient stock")
+                    End If
+
+                    ' STOCK IN (TO WH)
+                    SqlHelper.ExecuteNonQuery(
+                    "MERGE Stock t
+                     USING (SELECT @I ItemId,@W WhId,@Q Qty) s
+                     ON t.ItemId=s.ItemId AND t.WhId=s.WhId
+                     WHEN MATCHED THEN UPDATE SET Qty=Qty+@Q
+                     WHEN NOT MATCHED THEN INSERT VALUES(@I,@W,@Q)",
+                    tr,
+                    SqlHelper.P("@I", r("ItemId")),
+                    SqlHelper.P("@W", h("ToWh")),
+                    SqlHelper.P("@Q", r("Qty")))
+
+                    SqlHelper.ExecuteNonQuery(
+                        "INSERT INTO ItemTransfer_Detail VALUES(@H,@I,@Q)",
+                        tr,
+                        SqlHelper.P("@H", tid),
+                        SqlHelper.P("@I", r("ItemId")),
+                        SqlHelper.P("@Q", r("Qty")))
+                Next
+
+                tr.Commit()
+
+            Catch
+                tr.Rollback()
+                Throw
+            End Try
+        End Using
+    End Sub
+
+End Class
+
+*************************************Stock ledger
+CREATE TABLE StockLedger (
+    LedgerId INT IDENTITY PRIMARY KEY,
+    ItemId INT,
+    WhId INT,
+    DocType NVARCHAR(20),
+    DocNo NVARCHAR(30),
+    DocDate DATE,
+    InQty DECIMAL(18,2),
+    OutQty DECIMAL(18,2)
+);
+
+********************************Insert Ledger
+Public Shared Sub PostLedger(tr As SqlTransaction,
+                             itemId As Integer,
+                             whId As Integer,
+                             docType As String,
+                             docNo As String,
+                             docDate As Date,
+                             inQty As Decimal,
+                             outQty As Decimal)
+
+    SqlHelper.ExecuteNonQuery(
+    "INSERT INTO StockLedger
+     (ItemId,WhId,DocType,DocNo,DocDate,InQty,OutQty)
+     VALUES(@I,@W,@T,@N,@D,@IN,@OUT)",
+    tr,
+    SqlHelper.P("@I", itemId),
+    SqlHelper.P("@W", whId),
+    SqlHelper.P("@T", docType),
+    SqlHelper.P("@N", docNo),
+    SqlHelper.P("@D", docDate),
+    SqlHelper.P("@IN", inQty),
+    SqlHelper.P("@OUT", outQty))
+End Sub
+
+***************************************************Stock Report
+SELECT DocDate, DocType, DocNo,
+       InQty, OutQty,
+       SUM(ISNULL(InQty,0)-ISNULL(OutQty,0))
+       OVER (ORDER BY DocDate, LedgerId) AS Balance
+FROM StockLedger
+WHERE ItemId=@ItemId AND WhId=@WhId
+ORDER BY DocDate, LedgerId
+
+*************************************************Role based Menu
+CREATE TABLE Menus (
+    MenuCode NVARCHAR(50) PRIMARY KEY,
+    MenuName NVARCHAR(100),
+    Url NVARCHAR(200)
+);
+
+CREATE TABLE RoleMenus (
+    RoleId INT,
+    MenuCode NVARCHAR(50)
+);
+
+************************************************Login Function menu
+Public Shared Function GetMenus(roleId As Integer) As DataTable
+    Return SqlHelper.ExecuteDataTable(
+        "SELECT m.* FROM Menus m
+         JOIN RoleMenus r ON m.MenuCode=r.MenuCode
+         WHERE r.RoleId=" & roleId)
+End Function
+
+***************************************Layout_vbhtml
+@Dim menus = CType(Session("Menus"), DataTable)
+
+<ul>
+@For Each r As DataRow In menus.Rows
+    @<li><a href="@r("Url")">@r("MenuName")</a></li>
+Next
+</ul>
+
+***********************************Controller security
+Protected Overrides Sub OnActionExecuting(filterContext As ActionExecutingContext)
+    If Session("UserId") Is Nothing Then
+        filterContext.Result = RedirectToAction("Index", "Login")
+    End If
+End Sub
+
+******************************************barcode
+Dim tspl As String =
+"SIZE 75 mm, 50 mm
+GAP 3 mm,0
+CLS
+TEXT 20,20,""0"",0,1,1,""INVOICE NO: " & invNo & """
+BARCODE 20,60,""128"",80,1,0,2,2,""" & invNo & """
+PRINT 1"
+
+RawPrinter.Print("TSC TE200", tspl)
+
+*********************************************
+ERP_FINAL_PRODUCTION
+│
+├── ERP.Web
+│   ├── Controllers
+│   ├── Views
+│   ├── App_Start
+│   │   └── RouteConfig.vb
+│   ├── Global.asax
+│   └── Web.config
+│
+├── ERP.DAL
+│   ├── SqlHelper.vb
+│   ├── DocNoDAL.vb
+│   ├── PostingPeriodDAL.vb
+│   ├── PurchaseDAL.vb
+│   ├── SalesDAL.vb
+│   ├── StockDAL.vb
+│   ├── LedgerDAL.vb
+│   └── GSTDAL.vb
+│
+├── ERP.Models
+│   └── ViewModels
+│
+├── SQL
+│   ├── 01_Masters.sql
+│   ├── 02_Transactions.sql
+│   ├── 03_Stock.sql
+│   ├── 04_Ledger.sql
+│   └── 05_GST.sql
+│
+└── README.md
+**********************************************
+**********************************************avg price
+CREATE TABLE Stock (
+    ItemId INT,
+    WhId INT,
+    Qty DECIMAL(18,2),
+    AvgPrice DECIMAL(18,2),
+    PRIMARY KEY(ItemId, WhId)
+);
+
+*******************************************
+Public Shared Sub UpdateStockOnPurchase(itemId As Integer,
+                                        whId As Integer,
+                                        purchaseQty As Decimal,
+                                        purchaseRate As Decimal,
+                                        tr As SqlTransaction)
+
+    ' Get current stock
+    Dim dt = SqlHelper.ExecuteDataTable(
+        "SELECT Qty, AvgPrice FROM Stock WHERE ItemId=@I AND WhId=@W",
+        tr,
+        SqlHelper.P("@I", itemId),
+        SqlHelper.P("@W", whId)
+    )
+
+    If dt.Rows.Count = 0 Then
+        ' New stock
+        SqlHelper.ExecuteNonQuery(
+            "INSERT INTO Stock(ItemId, WhId, Qty, AvgPrice) VALUES(@I,@W,@Q,@P)",
+            tr,
+            SqlHelper.P("@I", itemId),
+            SqlHelper.P("@W", whId),
+            SqlHelper.P("@Q", purchaseQty),
+            SqlHelper.P("@P", purchaseRate)
+        )
+    Else
+        ' Existing stock: Weighted Average
+        Dim curQty As Decimal = dt.Rows(0)("Qty")
+        Dim curAvg As Decimal = dt.Rows(0)("AvgPrice")
+
+        Dim newQty As Decimal = curQty + purchaseQty
+        Dim newAvg As Decimal = (curQty * curAvg + purchaseQty * purchaseRate) / newQty
+
+        SqlHelper.ExecuteNonQuery(
+            "UPDATE Stock SET Qty=@Q, AvgPrice=@P WHERE ItemId=@I AND WhId=@W",
+            tr,
+            SqlHelper.P("@Q", newQty),
+            SqlHelper.P("@P", newAvg),
+            SqlHelper.P("@I", itemId),
+            SqlHelper.P("@W", whId)
+        )
+    End If
+End Sub
+
+*********************************************************stock on sales
+Public Shared Function UpdateStockOnSale(itemId As Integer,
+                                         whId As Integer,
+                                         saleQty As Decimal,
+                                         tr As SqlTransaction) As Decimal
+
+    ' Get stock and average price
+    Dim dt = SqlHelper.ExecuteDataTable(
+        "SELECT Qty, AvgPrice FROM Stock WHERE ItemId=@I AND WhId=@W",
+        tr,
+        SqlHelper.P("@I", itemId),
+        SqlHelper.P("@W", whId)
+    )
+
+    If dt.Rows.Count = 0 OrElse dt.Rows(0)("Qty") < saleQty Then
+        Throw New ApplicationException("Insufficient stock")
+    End If
+
+    Dim curQty As Decimal = dt.Rows(0)("Qty")
+    Dim avgPrice As Decimal = dt.Rows(0)("AvgPrice")
+
+    Dim newQty As Decimal = curQty - saleQty
+
+    SqlHelper.ExecuteNonQuery(
+        "UPDATE Stock SET Qty=@Q WHERE ItemId=@I AND WhId=@W",
+        tr,
+        SqlHelper.P("@Q", newQty),
+        SqlHelper.P("@I", itemId),
+        SqlHelper.P("@W", whId)
+    )
+
+    ' Return avg price for gross profit calculation
+    Return avgPrice
+End Function
+
+***********************************************sales invoice with gross profit
+Public Shared Sub SaveSalesInvoice(h As DataRow, d As DataTable)
+
+    Using con = SqlHelper.GetConnection()
+        Dim tr = con.BeginTransaction()
+        Try
+            ' Posting period check
+            PostingPeriodDAL.Validate(h("SalesDate"), tr)
+
+            ' Invoice number
+            Dim invNo As String = DocNoDAL.GetNextNo("SALES", tr)
+
+            Dim salesId As Integer = SqlHelper.ExecuteScalar(
+                "INSERT INTO Sales_Header(InvoiceNo, InvoiceDate, PartyId, Total) VALUES(@N,@D,@P,@T); SELECT SCOPE_IDENTITY()",
+                tr,
+                SqlHelper.P("@N", invNo),
+                SqlHelper.P("@D", h("SalesDate")),
+                SqlHelper.P("@P", h("PartyId")),
+                SqlHelper.P("@T", h("Total"))
+            )
+
+            For Each r As DataRow In d.Rows
+                ' Update stock & get avg price
+                Dim avgPrice As Decimal = UpdateStockOnSale(r("ItemId"), r("WhId"), r("Qty"), tr)
+
+                ' Gross profit per item
+                Dim grossProfit As Decimal = r("Rate") * r("Qty") - avgPrice * r("Qty")
+
+                ' Insert sales detail
+                SqlHelper.ExecuteNonQuery(
+                    "INSERT INTO Sales_Detail(SalesId, ItemId, Qty, Rate, AvgPrice, GrossProfit) VALUES(@H,@I,@Q,@R,@A,@G)",
+                    tr,
+                    SqlHelper.P("@H", salesId),
+                    SqlHelper.P("@I", r("ItemId")),
+                    SqlHelper.P("@Q", r("Qty")),
+                    SqlHelper.P("@R", r("Rate")),
+                    SqlHelper.P("@A", avgPrice),
+                    SqlHelper.P("@G", grossProfit)
+                )
+
+                ' Post ledger
+                LedgerDAL.PostLedger(tr, r("ItemId"), r("WhId"), "SALES", invNo, h("SalesDate"), 0, r("Qty") * avgPrice)
+            Next
+
+            tr.Commit()
+        Catch
+            tr.Rollback()
+            Throw
+        End Try
+    End Using
+End Sub
+
+**************************************************
+ALTER TABLE Sales_Detail
+ADD AvgPrice DECIMAL(18,2),
+    GrossProfit DECIMAL(18,2);
+**************************************************Cancel Sales invoice
+Public Shared Sub CancelSale(itemId As Integer,
+                             whId As Integer,
+                             cancelQty As Decimal,
+                             tr As SqlTransaction)
+
+    Dim dt = SqlHelper.ExecuteDataTable(
+        "SELECT Qty, AvgPrice FROM Stock WHERE ItemId=@I AND WhId=@W",
+        tr,
+        SqlHelper.P("@I", itemId),
+        SqlHelper.P("@W", whId)
+    )
+
+    If dt.Rows.Count > 0 Then
+        Dim curQty As Decimal = dt.Rows(0)("Qty")
+        Dim curAvg As Decimal = dt.Rows(0)("AvgPrice")
+
+        Dim newQty As Decimal = curQty + cancelQty
+        ' AvgPrice remains the same
+        SqlHelper.ExecuteNonQuery(
+            "UPDATE Stock SET Qty=@Q WHERE ItemId=@I AND WhId=@W",
+            tr,
+            SqlHelper.P("@Q", newQty),
+            SqlHelper.P("@I", itemId),
+            SqlHelper.P("@W", whId)
+        )
+    End If
+End Sub
+
+**********************************************
+***********************************************moving average purchase and sales
+Public Enum StockTransactionType
+    Purchase          ' Adding stock from purchase
+    PurchaseCancel    ' Cancelling purchase invoice
+    Sale              ' Reducing stock due to sale
+    SaleCancel        ' Cancelling sale invoice
+End Enum
+
+Public Shared Sub UpdateStock(itemId As Integer,
+                              whId As Integer,
+                              qty As Decimal,
+                              rate As Decimal,
+                              tr As SqlTransaction,
+                              transType As StockTransactionType)
+
+    ' Get current stock
+    Dim dt = SqlHelper.ExecuteDataTable(
+        "SELECT Qty, AvgPrice FROM Stock WHERE ItemId=@I AND WhId=@W",
+        tr,
+        SqlHelper.P("@I", itemId),
+        SqlHelper.P("@W", whId)
+    )
+
+    Dim curQty As Decimal = 0
+    Dim curAvg As Decimal = 0
+
+    If dt.Rows.Count > 0 Then
+        curQty = dt.Rows(0)("Qty")
+        curAvg = dt.Rows(0)("AvgPrice")
+    End If
+
+    Dim newQty As Decimal = curQty
+    Dim newAvg As Decimal = curAvg
+
+    Select Case transType
+        Case StockTransactionType.Purchase
+            ' Add purchase: update weighted average
+            newQty = curQty + qty
+            newAvg = (curQty * curAvg + qty * rate) / newQty
+
+        Case StockTransactionType.PurchaseCancel
+            ' Cancel purchase: remove purchased qty and value
+            newQty = curQty - qty
+            If newQty > 0 Then
+                newAvg = ((curQty * curAvg) - (qty * rate)) / newQty
+            Else
+                newAvg = 0
+            End If
+
+        Case StockTransactionType.Sale
+            ' Sale: reduce quantity, avg price remains
+            newQty = curQty - qty
+
+        Case StockTransactionType.SaleCancel
+            ' Cancel sale: add back sold qty, avg price remains
+            newQty = curQty + qty
+    End Select
+
+    ' Insert new stock if doesn't exist
+    If dt.Rows.Count = 0 Then
+        SqlHelper.ExecuteNonQuery(
+            "INSERT INTO Stock(ItemId, WhId, Qty, AvgPrice) VALUES(@I,@W,@Q,@P)",
+            tr,
+            SqlHelper.P("@I", itemId),
+            SqlHelper.P("@W", whId),
+            SqlHelper.P("@Q", newQty),
+            SqlHelper.P("@P", newAvg)
+        )
+    Else
+        ' Update existing stock
+        SqlHelper.ExecuteNonQuery(
+            "UPDATE Stock SET Qty=@Q, AvgPrice=@P WHERE ItemId=@I AND WhId=@W",
+            tr,
+            SqlHelper.P("@Q", newQty),
+            SqlHelper.P("@P", newAvg),
+            SqlHelper.P("@I", itemId),
+            SqlHelper.P("@W", whId)
+        )
+    End If
+End Sub
+
+*******************************************************
+CREATE DATABASE MiniERP;
+GO
+USE MiniERP;
+
+
+
+CREATE TABLE Users (
+  UserId INT IDENTITY PRIMARY KEY,
+  UserName NVARCHAR(50),
+  Password NVARCHAR(50),
+  RoleId INT
+);
+
+CREATE TABLE Roles (
+  RoleId INT IDENTITY PRIMARY KEY,
+  RoleName NVARCHAR(50)
+);
+
+CREATE TABLE RoleMenus (
+  RoleId INT,
+  MenuCode NVARCHAR(50)
+);
+
+
+CREATE TABLE PostingPeriod (
+  PeriodId INT IDENTITY PRIMARY KEY,
+  FromDate DATE,
+  ToDate DATE,
+  IsOpen BIT
+);
+
+CREATE TABLE DocSeries (
+  DocType NVARCHAR(50),
+  Prefix NVARCHAR(10),
+  LastNo INT
+);
+
+CREATE TABLE Warehouse (
+    WhId INT IDENTITY PRIMARY KEY,
+    WhName NVARCHAR(50)
+);
+
+CREATE TABLE Stock (
+    ItemId INT,
+    WhId INT,
+    Qty DECIMAL(18,2),
+    AvgPrice DECIMAL(18,2),
+    PRIMARY KEY(ItemId, WhId)
+);
+
+
+
+CREATE TABLE StockLedger (
+    LedgerId INT IDENTITY PRIMARY KEY,
+    ItemId INT,
+    WhId INT,
+    DocType NVARCHAR(20),
+    DocNo NVARCHAR(30),
+    DocDate DATE,
+    InQty DECIMAL(18,2),
+    OutQty DECIMAL(18,2)
+);
+
+
+CREATE TABLE Menus (
+    MenuCode NVARCHAR(50) PRIMARY KEY,
+    MenuName NVARCHAR(100),
+    Url NVARCHAR(200)
+);
+
+CREATE TABLE RoleMenus (
+    RoleId INT,
+    MenuCode NVARCHAR(50)
+);
+
+
+
+CREATE TABLE Item (
+  ItemId INT IDENTITY PRIMARY KEY,
+  GroupId INT,
+  ItemName NVARCHAR(150),
+  UOM NVARCHAR(20),
+  Rate DECIMAL(10,2),
+  LastpurRate decimal(10,2) 
+);
+
+
+CREATE TABLE PO_Header (
+    POId INT IDENTITY PRIMARY KEY,
+    PONo NVARCHAR(30),
+    PODate DATE,
+    PartyId INT,
+    Total DECIMAL(18,2),
+    IsCancelled BIT DEFAULT 0
+);
+
+CREATE TABLE PO_Detail (
+    POId INT,
+    ItemId INT,
+    Qty DECIMAL(18,2),
+    Rate DECIMAL(18,2),
+    Amount AS (Qty * Rate)
+);
+
+CREATE TABLE GRPO_Header (
+    GRPOId INT IDENTITY PRIMARY KEY,
+    GRPONo NVARCHAR(30),
+    GRPODate DATE,
+    POId INT
+);
+
+CREATE TABLE GRPO_Detail (
+    GRPOId INT,
+    ItemId INT,
+    Qty DECIMAL(18,2)
+);
+
+
+
+CREATE TABLE SalesMaster (
+SalesId INT IDENTITY PRIMARY KEY,
+SalesDate DATETIME,
+UserId INT,
+IsCancelled BIT DEFAULT 0
+);
+
+
+CREATE TABLE SalesDetail (
+DetailId INT IDENTITY PRIMARY KEY,
+SalesId INT,
+ItemId INT,
+Qty INT,
+Rate DECIMAL(10,2)
+whsid as int,
+AvgPrice Decimal(18,2),
+GrossProfit decimal(18,2)
+
+);
+
+ALTER TABLE Sales_Header ADD IsCancelled BIT DEFAULT 0;
+ALTER TABLE Purchase_Header ADD IsCancelled BIT DEFAULT 0;
+
+
+CREATE TABLE ItemTransfer_Header (
+    TransferId INT IDENTITY PRIMARY KEY,
+    TransferNo NVARCHAR(30),
+    TransferDate DATE,
+    FromWh INT,
+    ToWh INT,
+    IsCancelled BIT DEFAULT 0
+);
+
+CREATE TABLE ItemTransfer_Detail (
+    TransferId INT,
+    ItemId INT,
+    Qty DECIMAL(18,2)
+);
+*******************************
+*************************************** with foriegn key and index
+-- ==============================================
+-- MiniERP Database Script with FKs & Indexes
+-- ==============================================
+
+CREATE DATABASE MiniERP;
+GO
+USE MiniERP;
+GO
+
+-- =====================
+-- Users and Roles
+-- =====================
+CREATE TABLE Roles (
+    RoleId INT IDENTITY PRIMARY KEY,
+    RoleName NVARCHAR(50) NOT NULL
+);
+
+CREATE TABLE Users (
+    UserId INT IDENTITY PRIMARY KEY,
+    UserName NVARCHAR(50) NOT NULL,
+    Password NVARCHAR(50) NOT NULL,
+    RoleId INT NOT NULL,
+    CONSTRAINT FK_Users_Roles FOREIGN KEY (RoleId) REFERENCES Roles(RoleId)
+);
+
+CREATE INDEX IDX_Users_RoleId ON Users(RoleId);
+
+-- =====================
+-- Menus & RoleMenus
+-- =====================
+CREATE TABLE Menus (
+    MenuCode NVARCHAR(50) PRIMARY KEY,
+    MenuName NVARCHAR(100),
+    Url NVARCHAR(200)
+);
+
+CREATE TABLE RoleMenus (
+    RoleId INT NOT NULL,
+    MenuCode NVARCHAR(50) NOT NULL,
+    CONSTRAINT PK_RoleMenus PRIMARY KEY (RoleId, MenuCode),
+    CONSTRAINT FK_RoleMenus_Roles FOREIGN KEY (RoleId) REFERENCES Roles(RoleId),
+    CONSTRAINT FK_RoleMenus_Menus FOREIGN KEY (MenuCode) REFERENCES Menus(MenuCode)
+);
+
+CREATE INDEX IDX_RoleMenus_RoleId ON RoleMenus(RoleId);
+CREATE INDEX IDX_RoleMenus_MenuCode ON RoleMenus(MenuCode);
+
+-- =====================
+-- Posting Period & DocSeries
+-- =====================
+CREATE TABLE PostingPeriod (
+    PeriodId INT IDENTITY PRIMARY KEY,
+    FromDate DATE NOT NULL,
+    ToDate DATE NOT NULL,
+    IsOpen BIT DEFAULT 1
+);
+
+CREATE TABLE DocSeries (
+    DocType NVARCHAR(50) PRIMARY KEY,
+    Prefix NVARCHAR(10),
+    LastNo INT DEFAULT 0
+);
+
+-- =====================
+-- Warehouse
+-- =====================
+CREATE TABLE Warehouse (
+    WhId INT IDENTITY PRIMARY KEY,
+    WhName NVARCHAR(50) NOT NULL
+);
+
+-- =====================
+-- Items
+-- =====================
+CREATE TABLE Item (
+    ItemId INT IDENTITY PRIMARY KEY,
+    GroupId INT NULL,
+    ItemName NVARCHAR(150) NOT NULL,
+    UOM NVARCHAR(20),
+    Rate DECIMAL(10,2) DEFAULT 0,
+    LastPurRate DECIMAL(10,2) DEFAULT 0
+);
+
+-- =====================
+-- Stock
+-- =====================
+CREATE TABLE Stock (
+    ItemId INT NOT NULL,
+    WhId INT NOT NULL,
+    Qty DECIMAL(18,2) DEFAULT 0,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    CONSTRAINT PK_Stock PRIMARY KEY(ItemId, WhId),
+    CONSTRAINT FK_Stock_Item FOREIGN KEY (ItemId) REFERENCES Item(ItemId),
+    CONSTRAINT FK_Stock_Warehouse FOREIGN KEY (WhId) REFERENCES Warehouse(WhId)
+);
+
+CREATE INDEX IDX_Stock_ItemId ON Stock(ItemId);
+CREATE INDEX IDX_Stock_WhId ON Stock(WhId);
+
+-- =====================
+-- Stock Ledger
+-- =====================
+CREATE TABLE StockLedger (
+    LedgerId INT IDENTITY PRIMARY KEY,
+    ItemId INT NOT NULL,
+    WhId INT NOT NULL,
+    DocType NVARCHAR(20),
+    DocNo NVARCHAR(30),
+    DocDate DATE,
+    InQty DECIMAL(18,2) DEFAULT 0,
+    OutQty DECIMAL(18,2) DEFAULT 0,
+    CONSTRAINT FK_StockLedger_Item FOREIGN KEY (ItemId) REFERENCES Item(ItemId),
+    CONSTRAINT FK_StockLedger_Warehouse FOREIGN KEY (WhId) REFERENCES Warehouse(WhId)
+);
+
+CREATE INDEX IDX_StockLedger_ItemId ON StockLedger(ItemId);
+CREATE INDEX IDX_StockLedger_WhId ON StockLedger(WhId);
+CREATE INDEX IDX_StockLedger_DocDate ON StockLedger(DocDate);
+
+-- =====================
+-- Purchase Orders
+-- =====================
+CREATE TABLE PO_Header (
+    POId INT IDENTITY PRIMARY KEY,
+    PONo NVARCHAR(30) NOT NULL UNIQUE,
+    PODate DATE NOT NULL,
+    PartyId INT NOT NULL,
+    Discount decimal(18,2) DEFAULT 0,
+    Total DECIMAL(18,2) DEFAULT 0,
+    TDSAmount DECIMAL(18,2) DEFAULT 0,
+    TaxAmount Decimal(18,2) DEFAULT 0,
+    IsCancelled BIT DEFAULT 0,
+    CONSTRAINT FK_PO_Header_Party FOREIGN KEY (PartyId) REFERENCES Users(UserId)
+);
+
+CREATE TABLE PO_Detail (
+    LineNum as int,
+    POId INT NOT NULL,
+    ItemId INT NOT NULL,
+    Qty DECIMAL(18,2) DEFAULT 0,
+    Rate DECIMAL(18,2) DEFAULT 0,
+    Amount AS (Qty * Rate) PERSISTED,
+    TaxId int,
+    TaxAmount Decimal(18,2)
+    Discper Decimal(10,2)
+    Discount Decimal(18,2)
+    LineTotal Decimal(18,2)
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    WhId INT NOT NULL,
+    OpenQty DECIMAL(18,2)
+    Stockvalue as (Qty * AvgPrice) PERSISTED,
+    CONSTRAINT PK_PO_Detail PRIMARY KEY (POId, ItemId),
+    CONSTRAINT FK_PO_Detail_POHeader FOREIGN KEY (POId) REFERENCES PO_Header(POId),
+    CONSTRAINT FK_PO_Detail_Item FOREIGN KEY (ItemId) REFERENCES Item(ItemId)
+);
+
+CREATE INDEX IDX_PO_Detail_POId ON PO_Detail(POId);
+CREATE INDEX IDX_PO_Detail_ItemId ON PO_Detail(ItemId);
+
+-- =====================
+-- GRPO
+-- =====================
+CREATE TABLE GRPO_Header (
+    GRPOId INT IDENTITY PRIMARY KEY,
+    GRPONo NVARCHAR(30) NOT NULL UNIQUE,
+    GRPODate DATE NOT NULL,
+    POId INT NOT NULL,
+    CONSTRAINT FK_GRPO_Header_PO FOREIGN KEY (POId) REFERENCES PO_Header(POId)
+);
+
+CREATE TABLE GRPO_Detail (
+    GRPOId INT NOT NULL,
+    ItemId INT NOT NULL,
+    Qty DECIMAL(18,2) DEFAULT 0,
+    CONSTRAINT PK_GRPO_Detail PRIMARY KEY(GRPOId, ItemId),
+    CONSTRAINT FK_GRPO_Detail_GRPOHeader FOREIGN KEY(GRPOId) REFERENCES GRPO_Header(GRPOId),
+    CONSTRAINT FK_GRPO_Detail_Item FOREIGN KEY(ItemId) REFERENCES Item(ItemId)
+);
+
+CREATE INDEX IDX_GRPO_Detail_GRPOId ON GRPO_Detail(GRPOId);
+CREATE INDEX IDX_GRPO_Detail_ItemId ON GRPO_Detail(ItemId);
+
+
+CREATE TABLE SalesOrder_Header (
+    SOId INT IDENTITY PRIMARY KEY,
+    SONo NVARCHAR(30) UNIQUE,
+    SODate DATE,
+    PartyId INT,
+    Discount decimal(18,2) DEFAULT 0,
+    Total DECIMAL(18,2) DEFAULT 0,
+    TDSAmount DECIMAL(18,2) DEFAULT 0,
+    TaxAmount Decimal(18,2) DEFAULT 0,
+    Status NVARCHAR(20) DEFAULT 'OPEN', -- OPEN / PARTIAL / CLOSED
+    IsCancelled NVARCHAR(1) DEFAULT 'N'
+);
+
+CREATE TABLE SalesOrder_Detail (
+    Linenumber int,
+    SOId INT,
+    ItemId INT,
+    Qty DECIMAL(18,2),
+    Rate DECIMAL(18,2),
+    'Amount AS (Qty * Rate) PERSISTED,
+    TaxId int,
+    TaxAmount Decimal(18,2)
+    Discper Decimal(10,2)
+    Discount Decimal(18,2)
+    LineTotal Decimal(18,2)
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    WhId INT NOT NULL,
+    OpenQty DECIMAL(18,2), -- Remaining qty
+    CONSTRAINT PK_SODetail PRIMARY KEY (SOId, ItemId),
+    CONSTRAINT FK_SODetail_Header FOREIGN KEY (SOId) REFERENCES SalesOrder_Header(SOId),
+    CONSTRAINT FK_SODetail_Item FOREIGN KEY (ItemId) REFERENCES Item(ItemId)
+);
+
+
+-- =====================
+-- Sales
+-- =====================
+CREATE TABLE SalesMaster (
+    SalesId INT IDENTITY PRIMARY KEY,
+    SalesDate DATETIME NOT NULL,
+    UserId INT NOT NULL,
+    IsCancelled BIT DEFAULT 0,
+    CONSTRAINT FK_SalesMaster_User FOREIGN KEY(UserId) REFERENCES Users(UserId)
+);
+
+CREATE TABLE SalesDetail (
+    DetailId INT IDENTITY PRIMARY KEY,
+    linenumber int,
+    SalesId INT NOT NULL,
+    ItemId INT NOT NULL,
+    Qty DECIMAL(18,2) DEFAULT 0,
+    Rate DECIMAL(18,2) DEFAULT 0,
+    TaxId int,
+    TaxAmount Decimal(18,2)
+    Discper Decimal(10,2)
+    Discount Decimal(18,2)
+    LineTotal Decimal(18,2)
+    WhId INT NOT NULL,
+    Baseline int,
+    Basenum int,
+    Baseentry int,
+    AvgPrice DECIMAL(18,2) DEFAULT 0,
+    GrossProfit DECIMAL(18,2) DEFAULT 0,
+    CONSTRAINT FK_SalesDetail_SalesMaster FOREIGN KEY(SalesId) REFERENCES SalesMaster(SalesId),
+    CONSTRAINT FK_SalesDetail_Item FOREIGN KEY(ItemId) REFERENCES Item(ItemId),
+    CONSTRAINT FK_SalesDetail_Wh FOREIGN KEY(WhId) REFERENCES Warehouse(WhId)
+);
+
+CREATE INDEX IDX_SalesDetail_SalesId ON SalesDetail(SalesId);
+CREATE INDEX IDX_SalesDetail_ItemId ON SalesDetail(ItemId);
+CREATE INDEX IDX_SalesDetail_WhId ON SalesDetail(WhId);
+
+-- =====================
+-- Item Transfer
+-- =====================
+CREATE TABLE ItemTransfer_Header (
+    TransferId INT IDENTITY PRIMARY KEY,
+    TransferNo NVARCHAR(30) NOT NULL UNIQUE,
+    TransferDate DATE NOT NULL,
+    FromWh INT NOT NULL,
+    ToWh INT NOT NULL,
+    IsCancelled BIT DEFAULT 0,
+    CONSTRAINT FK_ItemTransfer_Header_FromWh FOREIGN KEY(FromWh) REFERENCES Warehouse(WhId),
+    CONSTRAINT FK_ItemTransfer_Header_ToWh FOREIGN KEY(ToWh) REFERENCES Warehouse(WhId)
+);
+
+CREATE TABLE ItemTransfer_Detail (
+    TransferId INT NOT NULL,
+    ItemId INT NOT NULL,
+    Qty DECIMAL(18,2) DEFAULT 0,
+    CONSTRAINT PK_ItemTransfer_Detail PRIMARY KEY(TransferId, ItemId),
+    CONSTRAINT FK_ItemTransfer_Detail_Header FOREIGN KEY(TransferId) REFERENCES ItemTransfer_Header(TransferId),
+    CONSTRAINT FK_ItemTransfer_Detail_Item FOREIGN KEY(ItemId) REFERENCES Item(ItemId)
+);
+
+CREATE INDEX IDX_ItemTransfer_Detail_TransferId ON ItemTransfer_Detail(TransferId);
+CREATE INDEX IDX_ItemTransfer_Detail_ItemId ON ItemTransfer_Detail(ItemId);
+
+GO
+
+
+CREATE TABLE GST_TaxMaster (
+    TaxId INT IDENTITY PRIMARY KEY,
+    TaxName NVARCHAR(50),      -- GST 5%, 12%, 18%, 28%
+    Rate DECIMAL(5,2),         -- Total GST %
+    CGST DECIMAL(5,2),
+    SGST DECIMAL(5,2),
+    IGST DECIMAL(5,2),
+    IsActive BIT DEFAULT 1
+);
+
+CREATE TABLE GST_Accounts (  ' account mapping
+    TaxId INT,
+    InputCGST INT,
+    InputSGST INT,
+    InputIGST INT,
+    OutputCGST INT,
+    OutputSGST INT,
+    OutputIGST INT
+);
+
+CREATE TABLE TDS_Master (
+    TDSId INT IDENTITY PRIMARY KEY,
+    Section NVARCHAR(10),      -- 194C, 194J etc
+    Rate DECIMAL(5,2),
+    AccountId INT              -- TDS Payable Account
+);
+
+
+********
+CREATE TABLE SalesDetail (
+    DetailId INT IDENTITY PRIMARY KEY,
+    SalesId INT NOT NULL,
+    ItemId INT NOT NULL,
+
+    Qty DECIMAL(18,2) NOT NULL,
+    Rate DECIMAL(18,2) NOT NULL,
+
+    DiscPer DECIMAL(5,2) DEFAULT 0,
+    Discount AS (
+        ROUND(Qty * Rate * DiscPer / 100, 2)
+    ) PERSISTED,
+
+    TaxableValue AS (
+        ROUND((Qty * Rate) - Discount, 2)
+    ) PERSISTED,
+
+    CGSTRate DECIMAL(5,2) DEFAULT 0,
+    SGSTRate DECIMAL(5,2) DEFAULT 0,
+    IGSTRate DECIMAL(5,2) DEFAULT 0,
+
+    CGST AS (ROUND(TaxableValue * CGSTRate / 100, 2)) PERSISTED,
+    SGST AS (ROUND(TaxableValue * SGSTRate / 100, 2)) PERSISTED,
+    IGST AS (ROUND(TaxableValue * IGSTRate / 100, 2)) PERSISTED,
+
+    LineTotal AS (
+        ROUND(TaxableValue + CGST + SGST + IGST, 2)
+    ) PERSISTED,
+
+    WhId INT NOT NULL
+);
+
+
+
+******************************************
+******************************************Accounting core
+Core Accounting Concepts (Simple ERP Style)
+
+We will use Double Entry Accounting:
+
+Transaction		Debit		Credit
+Purchase		Inventory	Supplier
+Purchase Cancel		Supplier	Inventory
+Sales			Customer	Sales
+Sales Cancel		Sales		Customer
+Payment to Supplier	Supplier	Cash/Bank
+Receipt from Customer	Cash/Bank	Customer
+Stock Issue (COGS)	COGS		Inventory
+
+**************************************************Chart of Accounts
+CREATE TABLE Accounts (
+    AccountId INT IDENTITY PRIMARY KEY,
+    AccountCode NVARCHAR(20) UNIQUE,
+    AccountName NVARCHAR(100),
+    AccountType NVARCHAR(20) -- Asset, Liability, Income, Expense
+);
+
+CREATE TABLE AccountGroup (
+    GroupId INT IDENTITY PRIMARY KEY,
+    GroupName NVARCHAR(50),
+    Nature NVARCHAR(20) -- Asset / Liability / Income / Expense
+);
+
+*****************************************Party Ledger Mapping
+CREATE TABLE Party (
+    PartyId INT IDENTITY PRIMARY KEY,
+    PartyName NVARCHAR(150),
+    PartyType NVARCHAR(20), -- Customer / Supplier
+    AccountId INT,
+    CONSTRAINT FK_Party_Account FOREIGN KEY (AccountId) REFERENCES Accounts(AccountId)
+);
+
+******************************Voucher system
+CREATE TABLE Voucher_Header (
+    VoucherId INT IDENTITY PRIMARY KEY,
+    VoucherType NVARCHAR(20), -- Purchase, Sales, Payment, Receipt, Journal
+    VoucherNo NVARCHAR(30) UNIQUE,
+    VoucherDate DATE,
+    RefNo NVARCHAR(30),
+    Narration NVARCHAR(250),
+    IsCancelled BIT DEFAULT 0
+);
+
+***********************************Voucher Details
+CREATE TABLE Voucher_Detail (
+    VoucherDetailId INT IDENTITY PRIMARY KEY,
+    VoucherId INT,
+    AccountId INT,
+    Debit DECIMAL(18,2) DEFAULT 0,
+    Credit DECIMAL(18,2) DEFAULT 0,
+    CONSTRAINT FK_VoucherDetail_Header FOREIGN KEY (VoucherId) REFERENCES Voucher_Header(VoucherId),
+    CONSTRAINT FK_VoucherDetail_Account FOREIGN KEY (AccountId) REFERENCES Accounts(AccountId)
+);
+
+CREATE INDEX IDX_VoucherDetail_VoucherId ON Voucher_Detail(VoucherId);
+CREATE INDEX IDX_VoucherDetail_AccountId ON Voucher_Detail(AccountId);
+
+CREATE TABLE TaxMaster (
+    TaxId INT IDENTITY PRIMARY KEY,
+    TaxName NVARCHAR(50),
+    Rate DECIMAL(5,2),
+    InputAccountId INT,
+    OutputAccountId INT
+);
+
+
+
+******************************************
+Stock ↔ Finance Integration
+Key Control Accounts
+
+You should create these once in Accounts:
+
+Account			Type
+Inventory		Asset
+Purchase		Expense
+Sales			Income
+COGS			Expense
+Cash			Asset
+Bank			Asset
+Supplier Control	Liability
+Customer Control	Asset
+
+*********************************************
+Inventory A/c     Dr
+   Supplier A/c   Cr
+
+-- Header
+INSERT INTO Voucher_Header (VoucherType, VoucherNo, VoucherDate, RefNo, Narration)
+VALUES ('Purchase', 'PV-001', GETDATE(), 'GRPO-001', 'Purchase GRPO');
+
+DECLARE @Vid INT = SCOPE_IDENTITY();
+
+-- Debit Inventory
+INSERT INTO Voucher_Detail (VoucherId, AccountId, Debit)
+VALUES (@Vid, @InventoryAccountId, @Amount);
+
+-- Credit Supplier
+INSERT INTO Voucher_Detail (VoucherId, AccountId, Credit)
+VALUES (@Vid, @SupplierAccountId, @Amount);
+
+***************************************Sales invoice Posting
+Customer A/c      Dr
+   Sales A/c      Cr
+
+COGS A/c          Dr
+   Inventory A/c  Cr
+
+****************************************cancel purchase
+Supplier A/c     Dr
+   Inventory A/c Cr
+
+****************************************cancel sales
+Sales A/c        Dr
+   Customer A/c  Cr
+
+Inventory A/c    Dr
+   COGS A/c      Cr
+
+******************************************postvoucher
+Public Shared Sub PostVoucher(vType As String,
+                              vNo As String,
+                              vDate As Date,
+                              narration As String,
+                              entries As List(Of Tuple(Of Integer, Decimal, Decimal)),
+                              tr As SqlTransaction)
+
+    SqlHelper.ExecuteNonQuery(
+        "INSERT INTO Voucher_Header(VoucherType,VoucherNo,VoucherDate,Narration)
+         VALUES(@T,@N,@D,@R)",
+        tr,
+        SqlHelper.P("@T", vType),
+        SqlHelper.P("@N", vNo),
+        SqlHelper.P("@D", vDate),
+        SqlHelper.P("@R", narration)
+    )
+
+    Dim vid As Integer = SqlHelper.ExecuteScalar("SELECT SCOPE_IDENTITY()", tr)
+
+    For Each e In entries
+        SqlHelper.ExecuteNonQuery(
+            "INSERT INTO Voucher_Detail(VoucherId,AccountId,Debit,Credit)
+             VALUES(@V,@A,@D,@C)",
+            tr,
+            SqlHelper.P("@V", vid),
+            SqlHelper.P("@A", e.Item1),
+            SqlHelper.P("@D", e.Item2),
+            SqlHelper.P("@C", e.Item3)
+        )
+    Next
+End Sub
+
+******************************************************Purchase with voucher
+Public Shared Sub PostPurchaseGRPO(grpoId As Integer, tr As SqlTransaction)
+
+    Dim hdr = SqlHelper.ExecuteDataRow(
+        "SELECT GRPONo, GRPODate, POId FROM GRPO_Header WHERE GRPOId=@I",
+        tr, SqlHelper.P("@I", grpoId))
+
+    Dim dt = SqlHelper.ExecuteDataTable(
+        "SELECT D.ItemId, D.Qty, P.Rate, PO.PartyId
+         FROM GRPO_Detail D
+         JOIN PO_Detail P ON D.ItemId=P.ItemId
+         JOIN PO_Header PO ON PO.POId=P.POId
+         WHERE D.GRPOId=@I",
+        tr, SqlHelper.P("@I", grpoId))
+
+    Dim totalValue As Decimal = 0
+
+    For Each r As DataRow In dt.Rows
+        Dim value = r("Qty") * r("Rate")
+        totalValue += value
+
+        ' Update Stock
+        UpdateStock(r("ItemId"), 1, r("Qty"), r("Rate"), tr, StockTransactionType.Purchase)
+
+        ' Stock Ledger
+        SqlHelper.ExecuteNonQuery(
+            "INSERT INTO StockLedger(ItemId,WhId,DocType,DocNo,DocDate,InQty)
+             VALUES(@I,1,'GRPO',@N,@D,@Q)",
+            tr,
+            SqlHelper.P("@I", r("ItemId")),
+            SqlHelper.P("@N", hdr("GRPONo")),
+            SqlHelper.P("@D", hdr("GRPODate")),
+            SqlHelper.P("@Q", r("Qty")))
+    Next
+
+    ' ===== Accounting =====
+    PostVoucher(
+        "Purchase",
+        hdr("GRPONo"),
+        hdr("GRPODate"),
+        "Purchase GRPO",
+        New List(Of Tuple(Of Integer, Decimal, Decimal)) From {
+            Tuple.Create(Accounts.Inventory, totalValue, 0D),
+            Tuple.Create(Accounts.SupplierControl, 0D, totalValue)
+        },
+        tr)
+
+End Sub
+
+**************************************Sales Posting
+Public Shared Sub PostSales(salesId As Integer, tr As SqlTransaction)
+
+    Dim hdr = SqlHelper.ExecuteDataRow(
+        "SELECT SalesId, SalesDate FROM SalesMaster WHERE SalesId=@I",
+        tr, SqlHelper.P("@I", salesId))
+
+    Dim dt = SqlHelper.ExecuteDataTable(
+        "SELECT D.ItemId,D.Qty,D.Rate,D.WhId,S.AvgPrice
+         FROM SalesDetail D
+         JOIN Stock S ON S.ItemId=D.ItemId AND S.WhId=D.WhId
+         WHERE D.SalesId=@I",
+        tr, SqlHelper.P("@I", salesId))
+
+    Dim salesValue As Decimal = 0
+    Dim costValue As Decimal = 0
+
+    For Each r As DataRow In dt.Rows
+        Dim salesAmt = r("Qty") * r("Rate")
+        Dim costAmt = r("Qty") * r("AvgPrice")
+
+        salesValue += salesAmt
+        costValue += costAmt
+
+        ' Update Stock
+        UpdateStock(r("ItemId"), r("WhId"), r("Qty"), 0, tr, StockTransactionType.Sale)
+
+        ' Stock Ledger
+        SqlHelper.ExecuteNonQuery(
+            "INSERT INTO StockLedger(ItemId,WhId,DocType,DocNo,DocDate,OutQty)
+             VALUES(@I,@W,'SALE',@N,@D,@Q)",
+            tr,
+            SqlHelper.P("@I", r("ItemId")),
+            SqlHelper.P("@W", r("WhId")),
+            SqlHelper.P("@N", salesId),
+            SqlHelper.P("@D", hdr("SalesDate")),
+            SqlHelper.P("@Q", r("Qty")))
+    Next
+
+    ' ===== Accounting =====
+    PostVoucher("Sales", salesId, hdr("SalesDate"), "Sales Invoice",
+        New List(Of Tuple(Of Integer, Decimal, Decimal)) From {
+            Tuple.Create(Accounts.CustomerControl, salesValue, 0D),
+            Tuple.Create(Accounts.Sales, 0D, salesValue),
+            Tuple.Create(Accounts.COGS, costValue, 0D),
+            Tuple.Create(Accounts.Inventory, 0D, costValue)
+        }, tr)
+
+End Sub
+
+**************************************cancel voucher
+Public Shared Sub CancelVoucher(voucherNo As String, tr As SqlTransaction)
+
+    Dim vid = SqlHelper.ExecuteScalar(
+        "SELECT VoucherId FROM Voucher_Header WHERE VoucherNo=@N",
+        tr, SqlHelper.P("@N", voucherNo))
+
+    ' Reverse voucher
+    SqlHelper.ExecuteNonQuery(
+        "INSERT INTO Voucher_Header(VoucherType,VoucherNo,VoucherDate,Narration)
+         SELECT VoucherType,VoucherNo+'-CAN',GETDATE(),'Cancel'
+         FROM Voucher_Header WHERE VoucherId=@V",
+        tr, SqlHelper.P("@V", vid))
+
+    Dim newVid = SqlHelper.ExecuteScalar("SELECT SCOPE_IDENTITY()", tr)
+
+    SqlHelper.ExecuteNonQuery(
+        "INSERT INTO Voucher_Detail(VoucherId,AccountId,Debit,Credit)
+         SELECT @NV,AccountId,Credit,Debit
+         FROM Voucher_Detail WHERE VoucherId=@V",
+        tr,
+        SqlHelper.P("@NV", newVid),
+        SqlHelper.P("@V", vid))
+
+    SqlHelper.ExecuteNonQuery(
+        "UPDATE Voucher_Header SET IsCancelled=1 WHERE VoucherId=@V",
+        tr, SqlHelper.P("@V", vid))
+End Sub
+
+********************************************trial balance
+SELECT 
+    A.AccountCode,
+    A.AccountName,
+    SUM(V.Debit) AS Debit,
+    SUM(V.Credit) AS Credit,
+    SUM(V.Debit - V.Credit) AS Balance
+FROM Voucher_Detail V
+JOIN Accounts A ON A.AccountId = V.AccountId
+GROUP BY A.AccountCode, A.AccountName
+ORDER BY A.AccountCode;
+
+*******************************************Profit and Loss Ac
+SELECT 
+    SUM(CASE WHEN A.AccountType='Income' THEN V.Credit - V.Debit ELSE 0 END) AS TotalIncome,
+    SUM(CASE WHEN A.AccountType='Expense' THEN V.Debit - V.Credit ELSE 0 END) AS TotalExpense,
+    SUM(CASE WHEN A.AccountType='Income' THEN V.Credit - V.Debit ELSE 0 END) -
+    SUM(CASE WHEN A.AccountType='Expense' THEN V.Debit - V.Credit ELSE 0 END) AS NetProfit
+FROM Voucher_Detail V
+JOIN Accounts A ON A.AccountId = V.AccountId;
+
+******************************************Balance Sheet
+SELECT 
+    A.AccountType,
+    A.AccountName,
+    SUM(V.Debit - V.Credit) AS Balance
+FROM Voucher_Detail V
+JOIN Accounts A ON A.AccountId = V.AccountId
+WHERE A.AccountType IN ('Asset','Liability')
+GROUP BY A.AccountType, A.AccountName
+ORDER BY A.AccountType;
+
+************************************************
+Purchase → Stock + AvgPrice → Voucher
+Sales → Stock + COGS → Voucher
+Cancel → Reverse Stock + Reverse Voucher
+Reports → Trial Balance / P&L / Balance Sheet
+
+******************************************Payment posting
+Public Shared Sub PostPayment(vNo As String,
+                              vDate As Date,
+                              debitAccId As Integer,
+                              creditAccId As Integer,
+                              amount As Decimal,
+                              narration As String,
+                              tr As SqlTransaction)
+
+    PostVoucher(
+        "Payment",
+        vNo,
+        vDate,
+        narration,
+        New List(Of Tuple(Of Integer, Decimal, Decimal)) From {
+            Tuple.Create(debitAccId, amount, 0D),
+            Tuple.Create(creditAccId, 0D, amount)
+        },
+        tr)
+End Sub
+
+************************************************Receipt Posting
+Public Shared Sub PostReceipt(vNo As String,
+                              vDate As Date,
+                              debitAccId As Integer,
+                              creditAccId As Integer,
+                              amount As Decimal,
+                              narration As String,
+                              tr As SqlTransaction)
+
+    PostVoucher(
+        "Receipt",
+        vNo,
+        vDate,
+        narration,
+        New List(Of Tuple(Of Integer, Decimal, Decimal)) From {
+            Tuple.Create(debitAccId, amount, 0D),
+            Tuple.Create(creditAccId, 0D, amount)
+        },
+        tr)
+End Sub
+
+**************************************************Party Ledger
+SELECT 
+    V.VoucherDate,
+    H.VoucherType,
+    H.VoucherNo,
+    V.Debit,
+    V.Credit,
+    SUM(V.Debit - V.Credit)
+        OVER (ORDER BY V.VoucherDate, H.VoucherId) AS RunningBalance
+FROM Voucher_Detail V
+JOIN Voucher_Header H ON H.VoucherId = V.VoucherId
+WHERE V.AccountId = @PartyAccountId
+ORDER BY V.VoucherDate, H.VoucherId;
+
+**************************************************Ageing Report
+SELECT
+    P.PartyName,
+    SUM(CASE WHEN DATEDIFF(DAY, H.VoucherDate, GETDATE()) <= 30 THEN V.Debit - V.Credit ELSE 0 END) AS [0-30],
+    SUM(CASE WHEN DATEDIFF(DAY, H.VoucherDate, GETDATE()) BETWEEN 31 AND 60 THEN V.Debit - V.Credit ELSE 0 END) AS [31-60],
+    SUM(CASE WHEN DATEDIFF(DAY, H.VoucherDate, GETDATE()) BETWEEN 61 AND 90 THEN V.Debit - V.Credit ELSE 0 END) AS [61-90],
+    SUM(CASE WHEN DATEDIFF(DAY, H.VoucherDate, GETDATE()) > 90 THEN V.Debit - V.Credit ELSE 0 END) AS [90+]
+FROM Voucher_Detail V
+JOIN Voucher_Header H ON H.VoucherId = V.VoucherId
+JOIN Party P ON P.AccountId = V.AccountId
+WHERE P.PartyType = 'Customer'
+GROUP BY P.PartyName;
+
+************************************************
+Public Shared Sub PostSalesAgainstSO(salesId As Integer, tr As SqlTransaction)
+
+    Dim dt = SqlHelper.ExecuteDataTable(
+        "SELECT ItemId, Qty, Rate, WhId, SOId
+         FROM SalesDetail WHERE SalesId=@I",
+        tr, SqlHelper.P("@I", salesId))
+
+    For Each r As DataRow In dt.Rows
+
+        ' Reduce open qty in SO
+        SqlHelper.ExecuteNonQuery(
+            "UPDATE SalesOrder_Detail
+             SET OpenQty = OpenQty - @Q
+             WHERE SOId=@S AND ItemId=@I",
+            tr,
+            SqlHelper.P("@Q", r("Qty")),
+            SqlHelper.P("@S", r("SOId")),
+            SqlHelper.P("@I", r("ItemId")))
+
+        ' Update stock
+        UpdateStock(
+            r("ItemId"),
+            r("WhId"),
+            r("Qty"),
+            0,
+            tr,
+            StockTransactionType.Sale)
+
+    Next
+
+    ' Update SO status
+    SqlHelper.ExecuteNonQuery(
+        "UPDATE SalesOrder_Header
+         SET Status =
+           CASE
+             WHEN NOT EXISTS (SELECT 1 FROM SalesOrder_Detail WHERE SOId=@S AND OpenQty>0)
+             THEN 'CLOSED'
+             ELSE 'PARTIAL'
+           END
+         WHERE SOId=@S",
+        tr, SqlHelper.P("@S", dt.Rows(0)("SOId")))
+
+End Sub
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE SalesMaster (
+    SalesId INT IDENTITY PRIMARY KEY,
+    SalesNo NVARCHAR(30),
+    SalesDate DATE,
+    PartyId INT,
+    GrossTotal DECIMAL(18,2),
+    TaxTotal DECIMAL(18,2),
+    NetTotal DECIMAL(18,2),
+    IsCancelled BIT DEFAULT 0
+);
+
+
+CREATE TABLE SalesDetail (
+    DetailId INT IDENTITY PRIMARY KEY,
+    SalesId INT,
+    ItemId INT,
+    Qty DECIMAL(18,2),
+    Rate DECIMAL(18,2),
+    Amount AS (Qty * Rate) PERSISTED,
+    DiscPer DECIMAL(5,2),
+    Discount AS (ROUND(Qty * Rate * DiscPer / 100,2)) PERSISTED,
+    'NetRate AS (ROUND(ISNULL(Rate,0) - (ISNULL(Rate,0) * ISNULL(DiscPer,0) / 100),2)) PERSISTED
+    NetRate AS (ROUND(Rate * (100 - ISNULL(DiscPer,0)) / 100,2)) PERSISTED    
+
+TaxableValue AS (Amount - Discount) PERSISTED,
+    WhId INT,
+    CONSTRAINT FK_SD_SM FOREIGN KEY(SalesId) REFERENCES SalesMaster(SalesId)
+);
+
+
+CREATE TABLE SalesTaxDetail (
+    TaxDetailId INT IDENTITY PRIMARY KEY,
+    DetailId INT,
+    TaxId INT,
+    CGST DECIMAL(18,2),
+    SGST DECIMAL(18,2),
+    IGST DECIMAL(18,2),
+    CONSTRAINT FK_ST_SD FOREIGN KEY(DetailId) REFERENCES SalesDetail(DetailId)
+);
+
+
+************************************Tally rounding method
+Dim gross As Decimal = subTotal + taxTotal
+Dim net As Decimal = Math.Round(gross, 0, MidpointRounding.AwayFromZero)
+Dim roundOff As Decimal = net - gross
+
+********************************************
+' Totals calculated while looping items
+Dim subTotal As Decimal = 0
+Dim taxTotal As Decimal = 0
+
+' After item loop
+Dim grossAmount As Decimal = subTotal + taxTotal
+Dim netAmount As Decimal = Math.Round(grossAmount, 0, MidpointRounding.AwayFromZero)
+Dim roundOff As Decimal = netAmount - grossAmount
+
+SqlHelper.ExecuteNonQuery(
+    "UPDATE SalesMaster SET
+        SubTotal=@S,
+        TaxTotal=@T,
+        GrossAmount=@G,
+        RoundOff=@R,
+        NetAmount=@N
+     WHERE SalesId=@I",
+    tr,
+    SqlHelper.P("@S", subTotal),
+    SqlHelper.P("@T", taxTotal),
+    SqlHelper.P("@G", grossAmount),
+    SqlHelper.P("@R", roundOff),
+    SqlHelper.P("@N", netAmount),
+    SqlHelper.P("@I", salesId)
+)
+
+*************************************************
+If roundOff <> 0 Then
+    PostVoucherLine(
+        vNo,
+        Accounts.RoundOff,
+        If(roundOff > 0, 0, Math.Abs(roundOff)),
+        If(roundOff > 0, roundOff, 0),
+        tr
+    )
+End If
+********************************************
+GST CASH Rounding Method Style
+----------------------------------
+netAmount = Math.Round(grossAmount / 0.05D, 0) * 0.05D
+roundOff = netAmount - grossAmount
+
+*******************************************
+
+CREATE TABLE Accounts (
+    AccountId INT IDENTITY PRIMARY KEY,
+    AccountName NVARCHAR(100),
+    AccountType NVARCHAR(20) -- Asset, Liability, Income, Expense
+);
+
+INSERT INTO Accounts(AccountName, AccountType)
+VALUES ('Round Off', 'Expense');
+
+-------------------------Input GST Purchases
+SELECT
+    SUM(CGST) AS InputCGST,
+    SUM(SGST) AS InputSGST,
+    SUM(IGST) AS InputIGST
+FROM PurchaseTaxDetail PT
+JOIN PurchaseMaster PM ON PM.PurchaseId=PT.PurchaseId
+WHERE PM.IsCancelled=0;
+
+-------------------------Output GST Sales
+SELECT
+    SUM(CGST) AS OutputCGST,
+    SUM(SGST) AS OutputSGST,
+    SUM(IGST) AS OutputIGST
+FROM SalesTaxDetail ST
+JOIN SalesMaster SM ON SM.SalesId=ST.SalesId
+WHERE SM.IsCancelled=0;
+
+-----------------------------------------GST PAYABLE / REFUND
+SELECT
+    (OutputCGST - InputCGST) AS CGSTPayable,
+    (OutputSGST - InputSGST) AS SGSTPayable,
+    (OutputIGST - InputIGST) AS IGSTPayable
+FROM (
+    SELECT
+        SUM(CASE WHEN A.AccountName='Input CGST' THEN Debit-Credit ELSE 0 END) InputCGST,
+        SUM(CASE WHEN A.AccountName='Output CGST' THEN Credit-Debit ELSE 0 END) OutputCGST,
+        SUM(CASE WHEN A.AccountName='Input SGST' THEN Debit-Credit ELSE 0 END) InputSGST,
+        SUM(CASE WHEN A.AccountName='Output SGST' THEN Credit-Debit ELSE 0 END) OutputSGST,
+        SUM(CASE WHEN A.AccountName='Input IGST' THEN Debit-Credit ELSE 0 END) InputIGST,
+        SUM(CASE WHEN A.AccountName='Output IGST' THEN Credit-Debit ELSE 0 END) OutputIGST
+    FROM VoucherDetail V
+    JOIN Accounts A ON A.AccountId=V.AccountId
+) X;
+
+*******************Accounting Structure
+CREATE TABLE VoucherHeader (
+    VoucherId INT IDENTITY PRIMARY KEY,
+    VoucherNo NVARCHAR(30),
+    VoucherDate DATE,
+    RefId INT,
+    VoucherType NVARCHAR(20)
+);
+
+CREATE TABLE VoucherDetail (
+    VoucherDetailId INT IDENTITY PRIMARY KEY,
+    VoucherId INT,
+    AccountId INT,
+    Debit DECIMAL(18,2),
+    Credit DECIMAL(18,2),
+    BankClearDate DATE NULL
+);
+
+******************************************Save purchase
+Public Shared Sub PostPurchaseVoucher(
+    purchaseId As Integer,
+    purchaseDate As Date,
+    supplierAcc As Integer,
+    subTotal As Decimal,
+    cgst As Decimal,
+    sgst As Decimal,
+    igst As Decimal,
+    roundOff As Decimal,
+    netAmount As Decimal,
+    tr As SqlTransaction)
+
+    Dim vId As Integer = Convert.ToInt32(
+        SqlHelper.ExecuteScalar(
+            "INSERT INTO VoucherHeader
+             (VoucherDate, RefId, VoucherType)
+             VALUES(@D,@R,'PURCHASE');
+             SELECT SCOPE_IDENTITY()",
+            tr,
+            SqlHelper.P("@D", purchaseDate),
+            SqlHelper.P("@R", purchaseId)
+        )
+    )
+
+    ' Purchase Expense
+    InsertVLine(vId, Accounts.Purchase, subTotal, 0, tr)
+
+    ' GST Input
+    If cgst > 0 Then InsertVLine(vId, Accounts.InputCGST, cgst, 0, tr)
+    If sgst > 0 Then InsertVLine(vId, Accounts.InputSGST, sgst, 0, tr)
+    If igst > 0 Then InsertVLine(vId, Accounts.InputIGST, igst, 0, tr)
+
+    ' Round Off
+    If roundOff <> 0 Then
+        InsertVLine(
+            vId,
+            Accounts.RoundOff,
+            If(roundOff < 0, Math.Abs(roundOff), 0),
+            If(roundOff > 0, roundOff, 0),
+            tr
+        )
+    End If
+
+    ' Supplier
+    InsertVLine(vId, supplierAcc, 0, netAmount, tr)
+End Sub
+
+***************************************************Purchase roundofff
+Dim gross As Decimal = subTotal + taxTotal
+Dim net As Decimal = Math.Round(gross, 0, MidpointRounding.AwayFromZero)
+Dim roundOff As Decimal = net - gross
+
+***********************************************Cancel Purchase
+Public Shared Sub CancelPurchase(purchaseId As Integer)
+
+    Using con As New SqlConnection(ConnStr)
+        con.Open()
+        Dim tr = con.BeginTransaction()
+
+        ' Reverse voucher
+        SqlHelper.ExecuteNonQuery(
+            "UPDATE VoucherHeader SET IsCancelled=1 WHERE RefId=@R AND VoucherType='PURCHASE'",
+            tr, SqlHelper.P("@R", purchaseId)
+        )
+
+        ' Restore stock
+        ' (loop PurchaseDetail and subtract qty)
+
+        ' Cancel purchase
+        SqlHelper.ExecuteNonQuery(
+            "UPDATE PurchaseMaster SET IsCancelled=1 WHERE PurchaseId=@I",
+            tr, SqlHelper.P("@I", purchaseId)
+        )
+
+        tr.Commit()
+    End Using
+End Sub
+
+******************************************* Recalculate Totals
+Private Sub RecalcTotals()
+    Dim subTotal As Decimal = 0
+    Dim taxTotal As Decimal = 0
+
+    For Each r As DataGridViewRow In dgvItems.Rows
+        subTotal += Val(r.Cells("TaxableValue").Value)
+        taxTotal += Val(r.Cells("GSTAmount").Value)
+    Next
+
+    Dim gross = subTotal + taxTotal
+    Dim net = Math.Round(gross, 0)
+    Dim roundOff = net - gross
+
+    lblSubTotal.Text = subTotal.ToString("0.00")
+    lblTax.Text = taxTotal.ToString("0.00")
+    lblRoundOff.Text = roundOff.ToString("0.00")
+    lblNetAmount.Text = net.ToString("0.00")
+End Sub
+
+**********************************************
+Trial Balance sheet SQL
+---------------------------
+SELECT
+    A.AccountId,
+    A.AccountName,
+    A.AccountType,
+    SUM(ISNULL(V.Debit,0)) AS Debit,
+    SUM(ISNULL(V.Credit,0)) AS Credit,
+    SUM(ISNULL(V.Debit,0) - ISNULL(V.Credit,0)) AS Balance
+FROM Accounts A
+LEFT JOIN VoucherDetail V ON A.AccountId = V.AccountId
+LEFT JOIN VoucherHeader H ON H.VoucherId = V.VoucherId
+WHERE ISNULL(H.IsCancelled,0)=0
+GROUP BY A.AccountId, A.AccountName, A.AccountType
+HAVING SUM(ISNULL(V.Debit,0)) <> 0
+    OR SUM(ISNULL(V.Credit,0)) <> 0
+ORDER BY A.AccountName;
+
+******************************************P & L Sql
+SELECT
+    AccountType,
+    SUM(Balance) AS Amount
+FROM (
+    SELECT
+        A.AccountType,
+        SUM(ISNULL(V.Credit,0) - ISNULL(V.Debit,0)) AS Balance
+    FROM Accounts A
+    JOIN VoucherDetail V ON A.AccountId=V.AccountId
+    JOIN VoucherHeader H ON H.VoucherId=V.VoucherId
+    WHERE A.AccountType IN ('Income','Expense')
+      AND ISNULL(H.IsCancelled,0)=0
+    GROUP BY A.AccountType
+) X
+GROUP BY AccountType;
+
+****************************************Net Profit
+SELECT
+    SUM(CASE WHEN AccountType='Income' THEN Amount ELSE -Amount END) AS NetProfit
+FROM (
+    SELECT
+        A.AccountType,
+        SUM(ISNULL(V.Credit,0) - ISNULL(V.Debit,0)) AS Amount
+    FROM Accounts A
+    JOIN VoucherDetail V ON A.AccountId=V.AccountId
+    JOIN VoucherHeader H ON H.VoucherId=V.VoucherId
+    WHERE A.AccountType IN ('Income','Expense')
+      AND ISNULL(H.IsCancelled,0)=0
+    GROUP BY A.AccountType
+) P;
+
+****************************************Balance Sheet Sql
+SELECT
+    A.AccountType,
+    A.AccountName,
+    SUM(ISNULL(V.Debit,0) - ISNULL(V.Credit,0)) AS Balance
+FROM Accounts A
+JOIN VoucherDetail V ON A.AccountId=V.AccountId
+JOIN VoucherHeader H ON H.VoucherId=V.VoucherId
+WHERE A.AccountType IN ('Asset','Liability','Capital')
+  AND ISNULL(H.IsCancelled,0)=0
+GROUP BY A.AccountType, A.AccountName
+ORDER BY A.AccountType, A.AccountName;
+
+*************************Input GST
+SELECT
+    SUM(Debit - Credit) AS InputGST
+FROM VoucherDetail V
+JOIN Accounts A ON A.AccountId=V.AccountId
+WHERE A.AccountName LIKE 'Input%GST';
+
+*************************************OutPut GST
+SELECT
+    SUM(Credit - Debit) AS OutputGST
+FROM VoucherDetail V
+JOIN Accounts A ON A.AccountId=V.AccountId
+WHERE A.AccountName LIKE 'Output%GST';
+
+************************************GST Net Payable
+SELECT
+    (OutputGST - InputGST) AS GSTPayable
+FROM (
+    SELECT
+        SUM(CASE WHEN A.AccountName LIKE 'Input%GST' THEN Debit-Credit ELSE 0 END) InputGST,
+        SUM(CASE WHEN A.AccountName LIKE 'Output%GST' THEN Credit-Debit ELSE 0 END) OutputGST
+    FROM VoucherDetail V
+    JOIN Accounts A ON A.AccountId=V.AccountId
+) G;
+
+*******************************Post GST Chalan
+Public Shared Sub PostGSTChallan(
+    challanDate As Date,
+    cgstPay As Decimal,
+    sgstPay As Decimal,
+    igstPay As Decimal,
+    bankAcc As Integer,
+    tr As SqlTransaction)
+
+    Dim vId As Integer = Convert.ToInt32(
+        SqlHelper.ExecuteScalar(
+            "INSERT INTO VoucherHeader
+             (VoucherDate, VoucherType)
+             VALUES(@D,'GSTCHALLAN');
+             SELECT SCOPE_IDENTITY()",
+            tr,
+            SqlHelper.P("@D", challanDate)
+        )
+    )
+
+    ' Output GST Dr
+    If cgstPay > 0 Then InsertVLine(vId, Accounts.OutputCGST, cgstPay, 0, tr)
+    If sgstPay > 0 Then InsertVLine(vId, Accounts.OutputSGST, sgstPay, 0, tr)
+    If igstPay > 0 Then InsertVLine(vId, Accounts.OutputIGST, igstPay, 0, tr)
+
+    ' Bank Cr
+    InsertVLine(vId, bankAcc, 0, cgstPay + sgstPay + igstPay, tr)
+End Sub
+
+***********************************************Ledger Sql
+
+DECLARE @AccountId INT = 101;   -- Party / Ledger account
+
+SELECT
+    H.VoucherDate,
+    H.VoucherType,
+    H.RefId,
+    V.Debit,
+    V.Credit,
+    SUM(ISNULL(V.Debit,0) - ISNULL(V.Credit,0))
+        OVER (ORDER BY H.VoucherDate, V.VoucherDetailId) AS RunningBalance
+FROM VoucherDetail V
+JOIN VoucherHeader H ON H.VoucherId = V.VoucherId
+WHERE V.AccountId = @AccountId
+  AND ISNULL(H.IsCancelled,0)=0
+ORDER BY H.VoucherDate, V.VoucherDetailId;
+
+*****************************************ageing report
+SELECT
+    P.PartyName,
+    SUM(CASE WHEN Days <= 30 THEN Balance ELSE 0 END) AS [0-30],
+    SUM(CASE WHEN Days BETWEEN 31 AND 60 THEN Balance ELSE 0 END) AS [31-60],
+    SUM(CASE WHEN Days BETWEEN 61 AND 90 THEN Balance ELSE 0 END) AS [61-90],
+    SUM(CASE WHEN Days > 90 THEN Balance ELSE 0 END) AS [90+]
+FROM (
+    SELECT
+        H.RefId,
+        P.PartyName,
+        DATEDIFF(DAY, H.VoucherDate, GETDATE()) AS Days,
+        SUM(V.Debit - V.Credit) AS Balance
+    FROM VoucherHeader H
+    JOIN VoucherDetail V ON H.VoucherId=V.VoucherId
+    JOIN Party P ON P.AccountId=V.AccountId
+    WHERE H.VoucherType IN ('SALES','PURCHASE')
+      AND ISNULL(H.IsCancelled,0)=0
+    GROUP BY H.RefId, H.VoucherDate, P.PartyName
+) X
+GROUP BY PartyName;
+
+************************************TDS
+
+SELECT
+    A.AccountName,
+    SUM(V.Credit - V.Debit) AS TDSPayable
+FROM VoucherDetail V
+JOIN Accounts A ON A.AccountId=V.AccountId
+WHERE A.AccountType='TDS'
+GROUP BY A.AccountName;
+**********************************PostTDSChallan
+Public Shared Sub PostTDSChallan(
+    challanDate As Date,
+    tdsAmount As Decimal,
+    tdsPayableAcc As Integer,
+    bankAcc As Integer,
+    tr As SqlTransaction)
+
+    Dim vId As Integer = InsertVoucher("TDSCHALLAN", challanDate, tr)
+
+    ' TDS Payable Dr
+    InsertVLine(vId, tdsPayableAcc, tdsAmount, 0, tr)
+
+    ' Bank Cr
+    InsertVLine(vId, bankAcc, 0, tdsAmount, tr)
+End Sub
+
+***************************************26QData
+SELECT
+    P.PartyName,
+    T.Section,
+    SUM(V.Credit) AS TDSAmount
+FROM VoucherDetail V
+JOIN Accounts A ON A.AccountId=V.AccountId
+JOIN Party P ON P.TDSId=A.AccountId
+JOIN TDS_Master T ON T.AccountId=A.AccountId
+GROUP BY P.PartyName, T.Section;
+
+****************************************Stock Valuation Report
+SELECT
+    I.ItemName,
+    W.WhName,
+    S.Qty,
+    S.AvgPrice,
+    (S.Qty * S.AvgPrice) AS StockValue
+FROM Stock S
+JOIN Item I ON I.ItemId=S.ItemId
+JOIN Warehouse W ON W.WhId=S.WhId
+ORDER BY I.ItemName;
+******************************* Daybook 
+SELECT
+    H.VoucherDate,
+    H.VoucherType,
+    H.RefId,
+    A.AccountName,
+    V.Debit,
+    V.Credit
+FROM VoucherHeader H
+JOIN VoucherDetail V ON H.VoucherId=V.VoucherId
+JOIN Accounts A ON A.AccountId=V.AccountId
+WHERE ISNULL(H.IsCancelled,0)=0
+ORDER BY H.VoucherDate, H.VoucherId;
+*****************************************Cash book
+SELECT
+    H.VoucherDate,
+    H.VoucherType,
+    V.Debit,
+    V.Credit,
+    SUM(V.Debit - V.Credit)
+        OVER (ORDER BY H.VoucherDate, V.VoucherDetailId) AS CashBalance
+FROM VoucherDetail V
+JOIN VoucherHeader H ON H.VoucherId=V.VoucherId
+WHERE V.AccountId = @CashAccountId
+  AND ISNULL(H.IsCancelled,0)=0
+ORDER BY H.VoucherDate, V.VoucherDetailId;
+
+******************************************Bank book
+SELECT
+    H.VoucherDate,
+    H.VoucherType,
+    V.Debit,
+    V.Credit
+FROM VoucherDetail V
+JOIN VoucherHeader H ON H.VoucherId=V.VoucherId
+WHERE V.AccountId = @BankAccountId
+  AND ISNULL(H.IsCancelled,0)=0
+ORDER BY H.VoucherDate;
+
+************************************BRS
+DECLARE @BankAcc INT = 201;
+
+SELECT
+    H.VoucherDate,
+    H.VoucherType,
+    V.Debit,
+    V.Credit,
+    V.BankClearDate,
+    CASE 
+        WHEN V.BankClearDate IS NULL THEN 'Uncleared'
+        ELSE 'Cleared'
+    END AS Status
+FROM VoucherDetail V
+JOIN VoucherHeader H ON H.VoucherId=V.VoucherId
+WHERE V.AccountId=@BankAcc
+  AND ISNULL(H.IsCancelled,0)=0
+ORDER BY H.VoucherDate;
+
+****************************************Bank balance as per book
+SELECT SUM(Debit - Credit)
+FROM VoucherDetail
+WHERE AccountId=@BankAcc;
+
+**************************************Bank balance as per Statement
+SELECT SUM(Debit - Credit)
+FROM VoucherDetail
+WHERE AccountId=@BankAcc
+  AND BankClearDate IS NOT NULL;
+
+******************************************Mark Cleared
+UPDATE VoucherDetail
+SET BankClearDate=@D
+WHERE VoucherDetailId=@ID
+
+************************************ Interest Rule
+CREATE TABLE InterestRules (
+    AccountId INT,
+    Rate DECIMAL(5,2),   -- Annual %
+    CalcType NVARCHAR(10) -- Daily / Monthly
+);
+
+**************************************Interest Calculation
+SELECT
+    AccountId,
+    SUM(Balance * Rate / 365 / 100) AS Interest
+FROM (
+    SELECT
+        V.AccountId,
+        SUM(V.Debit - V.Credit) AS Balance,
+        R.Rate
+    FROM VoucherDetail V
+    JOIN InterestRules R ON R.AccountId=V.AccountId
+    GROUP BY V.AccountId, R.Rate
+) X
+GROUP BY AccountId;
+
+*************************************Interest Posting
+Public Shared Sub PostInterest(
+    accId As Integer,
+    interestAmt As Decimal,
+    interestAcc As Integer,
+    tr As SqlTransaction)
+
+    Dim vId = InsertVoucher("INTEREST", Today, tr)
+
+    InsertVLine(vId, interestAcc, interestAmt, 0, tr)
+    InsertVLine(vId, accId, 0, interestAmt, tr)
+End Sub
+
+**************************************Multi currency support
+CREATE TABLE Currency (
+    CurrencyCode NVARCHAR(10) PRIMARY KEY,
+    CurrencyName NVARCHAR(50)
+);
+
+CREATE TABLE ExchangeRate (
+    CurrencyCode NVARCHAR(10),
+    Rate DECIMAL(18,6),
+    RateDate DATE
+);
+
+**************************************voucherdetail enhancement
+ALTER TABLE VoucherDetail ADD
+    CurrencyCode NVARCHAR(10) DEFAULT 'INR',
+    FCAmount DECIMAL(18,2),
+    ExchangeRate DECIMAL(18,6);
+**********************************************posting logic
+Dim inrAmount As Decimal = fcAmount * exRate
+
+InsertVLine(vId, accId, inrAmount, 0, tr)
+
+UPDATE VoucherDetail
+SET FCAmount=@F, ExchangeRate=@R
+WHERE VoucherDetailId=@ID
+
+****************************************Forex Gain/Loss
+SELECT
+    AccountId,
+    SUM((FCAmount * NewRate) - (FCAmount * OldRate)) AS ForexDiff
+FROM ForexReval
+GROUP BY AccountId;
+
+****************************************year master
+CREATE TABLE FinancialYear (
+    YearId INT IDENTITY PRIMARY KEY,
+    FromDate DATE,
+    ToDate DATE,
+    IsClosed BIT DEFAULT 0
+);
+**********************************************Calculate Net Profit
+SELECT
+    SUM(Credit - Debit) AS NetProfit
+FROM VoucherDetail V
+JOIN Accounts A ON A.AccountId=V.AccountId
+WHERE A.AccountType IN ('Income','Expense');
+**************************************************Closing Entry
+Dim profit As Decimal = GetNetProfit(tr)
+
+Dim vId = InsertVoucher("YEARCLOSE", fyEndDate, tr)
+
+InsertVLine(vId, Accounts.PnL, profit, 0, tr)
+InsertVLine(vId, Accounts.Capital, 0, profit, tr)
+
+****************************************carry forward opening
+INSERT INTO OpeningBalance(AccountId, Amount, YearId)
+SELECT
+    AccountId,
+    SUM(Debit - Credit),
+    @NewYearId
+FROM VoucherDetail
+GROUP BY AccountId;
+
+*******************************************
+If MessageBox.Show("Close Financial Year?", "Confirm",
+   MessageBoxButtons.YesNo) = DialogResult.Yes Then
+    CloseYear(yearId)
+End If
+*******************************Opening balance
+CREATE TABLE OpeningBalance (
+    YearId INT,
+    AccountId INT,
+    Amount DECIMAL(18,2)
+);
+
+***********************************Closing financial year
+Public Sub CloseFinancialYear(yearId As Integer)
+
+    Dim tr As SqlTransaction = con.BeginTransaction()
+
+    Try
+        Dim profit As Decimal = GetNetProfit(yearId, tr)
+
+        Dim vId As Integer = InsertVoucher(
+            "YEARCLOSE",
+            GetYearEndDate(yearId),
+            tr)
+
+        ' P&L Account
+        If profit >= 0 Then
+            InsertVLine(vId, Accounts.PnL, profit, 0, tr)
+            InsertVLine(vId, Accounts.Capital, 0, profit, tr)
+        Else
+            InsertVLine(vId, Accounts.Capital, Math.Abs(profit), 0, tr)
+            InsertVLine(vId, Accounts.PnL, 0, Math.Abs(profit), tr)
+        End If
+
+        ' Mark year closed
+        UpdateYearClosed(yearId, tr)
+
+        ' Carry forward balances
+        CarryForwardBalances(yearId, tr)
+
+        tr.Commit()
+
+    Catch ex As Exception
+        tr.Rollback()
+        Throw
+    End Try
+
+End Sub
+
+**************************************
+INSERT INTO OpeningBalance (YearId, AccountId, Amount)
+SELECT
+    @NewYearId,
+    VD.AccountId,
+    SUM(VD.Debit - VD.Credit)
+FROM VoucherDetail VD
+JOIN Accounts A ON A.AccountId = VD.AccountId
+JOIN VoucherHeader VH ON VH.VoucherId = VD.VoucherId
+WHERE A.AccountType IN ('Asset','Liability','Capital')
+  AND VH.VoucherDate <= @YearEnd
+GROUP BY VD.AccountId;
+
+********************************Lock old year
+IF EXISTS (
+    SELECT 1 FROM FinancialYear
+    WHERE IsClosed=1
+      AND @VoucherDate BETWEEN FromDate AND ToDate
+)
+BEGIN
+    RAISERROR('Financial year closed',16,1)
+END
+
+**************************************
+If MessageBox.Show("Close financial year permanently?",
+   "Confirm", MessageBoxButtons.YesNo) = DialogResult.Yes Then
+
+    CloseFinancialYear(cmbYear.SelectedValue)
+    MessageBox.Show("Year closed successfully")
+
+End If
+
+****************************************Stock opening]
+CREATE TABLE StockOpening (
+    YearId INT,
+    ItemId INT,
+    WhId INT,
+    Qty DECIMAL(18,2),
+    AvgPrice DECIMAL(18,2),
+    Amount AS (Qty * AvgPrice)
+);
+
+INSERT INTO StockOpening (YearId, ItemId, WhId, Qty, AvgPrice)
+SELECT
+    @NewYearId,
+    ItemId,
+    WhId,
+    Qty,
+    AvgPrice
+FROM Stock;
+
+***********************************PO Pending
+CREATE TABLE PO_Opening (
+    YearId INT,
+    POId INT,
+    PONo NVARCHAR(30),
+    PODate DATE,
+    PartyId INT
+);
+
+CREATE TABLE PO_Opening_Detail (
+    POId INT,
+    ItemId INT,
+    OrderedQty DECIMAL(18,2),
+    ReceivedQty DECIMAL(18,2),
+    BalanceQty AS (OrderedQty - ReceivedQty)
+);
+
+INSERT INTO PO_Opening
+SELECT @NewYearId, POId, PONo, PODate, PartyId
+FROM PO_Header
+WHERE IsCancelled=0
+AND POId IN (
+    SELECT POId FROM PO_Detail
+    GROUP BY POId
+    HAVING SUM(Qty) >
+           (SELECT ISNULL(SUM(Qty),0)
+            FROM GRPO_Detail GD
+            WHERE GD.GRPOId IN (
+                SELECT GRPOId FROM GRPO_Header WHERE POId=PO_Detail.POId
+            ))
+);
+
+******************************* SO Pending
+CREATE TABLE SO_Opening (
+    YearId INT,
+    SOId INT,
+    SONo NVARCHAR(30),
+    SODate DATE,
+    PartyId INT
+);
+
+CREATE TABLE SO_Opening_Detail (
+    SOId INT,
+    ItemId INT,
+    OrderedQty DECIMAL(18,2),
+    DeliveredQty DECIMAL(18,2),
+    BalanceQty AS (OrderedQty - DeliveredQty)
+);
+
+INSERT INTO SO_Opening
+SELECT @NewYearId, SOId, SONo, SODate, PartyId
+FROM SalesOrder_Header
+WHERE IsCancelled=0
+AND SOId IN (
+    SELECT SOId FROM SalesOrder_Detail
+    GROUP BY SOId
+    HAVING SUM(Qty) >
+           (SELECT ISNULL(SUM(Qty),0)
+            FROM SalesDelivery_Detail SD
+            WHERE SD.SalesId=SalesOrder_Detail.SOId)
+);
+
+******************************************stock Availability
+SELECT
+    ISNULL(SO.Qty,0)
+  + ISNULL(SUM(SL.InQty - SL.OutQty),0) AS AvailableQty
+FROM StockOpening SO
+LEFT JOIN StockLedger SL ON SL.ItemId=SO.ItemId
+WHERE SO.YearId=@YearId;
+
+**************************************PO Balance
+SELECT BalanceQty
+FROM PO_Opening_Detail
+WHERE POId=@POId AND ItemId=@ItemId;
+
+********************** SO Balance
+SELECT BalanceQty
+FROM SO_Opening_Detail
+WHERE SOId=@SOId AND ItemId=@ItemId;
+*******************************
+*****************************************
+****************************************
+STOCK OPENING – WINFORMS SCREEN
+🖥️ Form : frmStockOpening
+Controls
+---------------------------
+ComboBox   cmbYear
+ComboBox   cmbItem
+ComboBox   cmbWarehouse
+TextBox    txtQty
+TextBox    txtAvgPrice
+Label      lblAmount
+Button     btnSave
+DataGridView dgvStockOpening
+
+FORM LOAD
+--------------------------
+Private Sub frmStockOpening_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+    LoadYear()
+    LoadItems()
+    LoadWarehouse()
+    LoadGrid()
+End Sub
+
+Sub LoadYear()
+    cmbYear.DataSource = SqlHelper.ExecuteDataTable(
+        "SELECT YearId, FromDate + ' - ' + ToDate AS FY FROM FinancialYear WHERE IsClosed=0")
+    cmbYear.DisplayMember = "FY"
+    cmbYear.ValueMember = "YearId"
+End Sub
+
+Sub LoadItems()
+    cmbItem.DataSource = SqlHelper.ExecuteDataTable(
+        "SELECT ItemId, ItemName FROM Item")
+    cmbItem.DisplayMember = "ItemName"
+    cmbItem.ValueMember = "ItemId"
+End Sub
+
+Sub LoadWarehouse()
+    cmbWarehouse.DataSource = SqlHelper.ExecuteDataTable(
+        "SELECT WhId, WhName FROM Warehouse")
+    cmbWarehouse.DisplayMember = "WhName"
+    cmbWarehouse.ValueMember = "WhId"
+End Sub
+
+Private Sub txtCalc_TextChanged(sender As Object, e As EventArgs) _
+Handles txtQty.TextChanged, txtAvgPrice.TextChanged
+
+    Dim qty As Decimal = Val(txtQty.Text)
+    Dim rate As Decimal = Val(txtAvgPrice.Text)
+    lblAmount.Text = (qty * rate).ToString("0.00")
+
+End Sub
+
+Private Sub btnSave_Click(sender As Object, e As EventArgs) Handles btnSave.Click
+
+    SqlHelper.ExecuteNonQuery(
+        "IF EXISTS (SELECT 1 FROM StockOpening WHERE YearId=@Y AND ItemId=@I AND WhId=@W)
+         UPDATE StockOpening SET Qty=@Q, AvgPrice=@P
+         WHERE YearId=@Y AND ItemId=@I AND WhId=@W
+         ELSE
+         INSERT INTO StockOpening(YearId,ItemId,WhId,Qty,AvgPrice)
+         VALUES(@Y,@I,@W,@Q,@P)",
+
+        SqlHelper.P("@Y", cmbYear.SelectedValue),
+        SqlHelper.P("@I", cmbItem.SelectedValue),
+        SqlHelper.P("@W", cmbWarehouse.SelectedValue),
+        SqlHelper.P("@Q", Val(txtQty.Text)),
+        SqlHelper.P("@P", Val(txtAvgPrice.Text))
+    )
+
+    LoadGrid()
+    MessageBox.Show("Stock Opening Saved")
+
+End Sub
+
+Sub LoadGrid()
+    dgvStockOpening.DataSource = SqlHelper.ExecuteDataTable(
+        "SELECT I.ItemName, W.WhName, Qty, AvgPrice, Qty*AvgPrice Amount
+         FROM StockOpening SO
+         JOIN Item I ON I.ItemId=SO.ItemId
+         JOIN Warehouse W ON W.WhId=SO.WhId
+         WHERE YearId=@Y",
+        SqlHelper.P("@Y", cmbYear.SelectedValue)
+    )
+End Sub
+
+***********************Stock opening Valuation Report 
+SELECT
+    I.ItemName,
+    W.WhName,
+    SO.Qty,
+    SO.AvgPrice,
+    SO.Qty * SO.AvgPrice AS StockValue
+FROM StockOpening SO
+JOIN Item I ON I.ItemId = SO.ItemId
+JOIN Warehouse W ON W.WhId = SO.WhId
+WHERE SO.YearId = @YearId
+ORDER BY I.ItemName;
+
+*********************************Total stock value
+SELECT
+    SUM(Qty * AvgPrice) AS TotalStockValue
+FROM StockOpening
+WHERE YearId=@YearId;
+
+********************************
+Moving average update
+-------------------------
+;WITH cte AS (
+    SELECT *,
+           SUM(InQty - OutQty) OVER (
+               PARTITION BY ItemId, WhId
+               ORDER BY DocDate, LedgerId
+           ) AS RunQty,
+
+           SUM(TransValue) OVER (
+               PARTITION BY ItemId, WhId
+               ORDER BY DocDate, LedgerId
+           ) AS RunValue
+    FROM StockLedger
+)
+UPDATE cte
+SET BalanceQty   = RunQty,
+    BalanceValue = RunValue,
+    AvgPrice     = CASE WHEN RunQty = 0 THEN 0 ELSE RunValue / RunQty END;
+**********************************************
+Sales Issue Moving Average
+------------------------------
+DECLARE @AvgPrice DECIMAL(18,6);
+
+SELECT TOP 1 @AvgPrice = AvgPrice
+FROM StockLedger
+WHERE ItemId = @ItemId AND WhId = @WhId
+ORDER BY LedgerId DESC;
+
+INSERT INTO StockLedger
+(
+    DocType, DocEntry, DocLine, DocDate,
+    ItemId, WhId, BatchNum,
+    OutQty, Rate, TransValue,
+    BalanceQty, BalanceValue, AvgPrice
+)
+VALUES
+(
+    'SI', @DocEntry, @LineNum, GETDATE(),
+    @ItemId, @WhId, @BatchNum,
+    @Qty, @AvgPrice, -(@Qty * @AvgPrice),
+    0, 0, 0
+);
+
+***********************************
+SELECT ItemId, WhId,
+       MAX(BalanceQty) AS StockQty,
+       MAX(AvgPrice) AS AvgPrice
+FROM StockLedger
+GROUP BY ItemId, WhId;
+
+*****************************
+CREATE TABLE Menus (
+    MenuCode NVARCHAR(50) PRIMARY KEY,
+    MenuName NVARCHAR(100),
+    ParentMenuCode NVARCHAR(50),
+    Url NVARCHAR(200),
+    Active NVARCHAR(1)
+);
+
+******************************
+btnSalesInvoice.Tag = "SALES_INVOICE"
+btnPurchaseOrder.Tag = "PURCHASE_ORDER"
+btnItemMaster.Tag = "ITEM_MASTER"
+
+Dim dt As DataTable = SqlHelper.ExecuteDataset(
+    conString,
+    CommandType.Text,
+    "SELECT MenuCode FROM RoleMenus WHERE RoleId = @RoleId",
+    New SqlParameter("@RoleId", roleId)
+).Tables(0)
+
+For Each ctrl As Control In Me.Controls
+    If TypeOf ctrl Is Button AndAlso ctrl.Tag IsNot Nothing Then
+        ctrl.Enabled = dt.Select("MenuCode = '" & ctrl.Tag.ToString() & "'").Length > 0
+    End If
+Next
+------------------------
+INSERT RoleMenus (Admin Screen)
+---------------------------------
+INSERT INTO RoleMenus (RoleId, MenuCode)
+VALUES (@RoleId, @MenuCode)
+
+****************************************Winfowm UI Design
+----------------------------------
+| Role ComboBox [Admin ▼]        |
+----------------------------------
+| [✓] Masters                    |
+|     [✓] Item Master            |
+|     [ ] Customer Master        |
+| [✓] Sales                      |
+|     [✓] Sales Invoice          |
+|     [ ] Sales Return           |
+| [ ] Purchase                   |
+|     [ ] Purchase Order         |
+----------------------------------
+| [ Save ]                       |
+----------------------------------
+
+***************************Load Menus into TreeView (Hierarchy)
+Private Sub LoadMenus()
+    Dim dt As DataTable = SqlHelper.ExecuteDataset(
+        conStr,
+        CommandType.Text,
+        "SELECT MenuCode, MenuName, ParentMenuCode 
+         FROM Menus WHERE Active='Y' ORDER BY SortOrder"
+    ).Tables(0)
+
+    TreeView1.Nodes.Clear()
+
+    For Each row As DataRow In dt.Select("ParentMenuCode IS NULL")
+        Dim parent As New TreeNode(row("MenuName").ToString())
+        parent.Tag = row("MenuCode").ToString()
+        TreeView1.Nodes.Add(parent)
+        LoadChildMenus(parent, dt)
+    Next
+End Sub
+
+Private Sub LoadChildMenus(parent As TreeNode, dt As DataTable)
+    For Each row As DataRow In dt.Select("ParentMenuCode='" & parent.Tag & "'")
+        Dim child As New TreeNode(row("MenuName").ToString())
+        child.Tag = row("MenuCode").ToString()
+        parent.Nodes.Add(child)
+        LoadChildMenus(child, dt)
+    Next
+End Sub
+
+********************************Load Role Permissions (Check TreeView)
+Private Sub LoadRoleMenus(roleId As Integer)
+    Dim dt As DataTable = SqlHelper.ExecuteDataset(
+        conStr,
+        CommandType.Text,
+        "SELECT MenuCode FROM RoleMenus WHERE RoleId=@RoleId",
+        New SqlParameter("@RoleId", roleId)
+    ).Tables(0)
+
+    CheckNodes(TreeView1.Nodes, dt)
+End Sub
+
+Private Sub CheckNodes(nodes As TreeNodeCollection, dt As DataTable)
+    For Each node As TreeNode In nodes
+        node.Checked = dt.Select("MenuCode='" & node.Tag & "'").Length > 0
+        CheckNodes(node.Nodes, dt)
+    Next
+End Sub
+
+***************************************Save Rolemenu
+Private Sub btnSave_Click(...)
+    SqlHelper.ExecuteNonQuery(conStr, CommandType.Text,
+        "DELETE FROM RoleMenus WHERE RoleId=@RoleId",
+        New SqlParameter("@RoleId", roleId))
+
+    SaveCheckedNodes(TreeView1.Nodes)
+End Sub
+
+Private Sub SaveCheckedNodes(nodes As TreeNodeCollection)
+    For Each node As TreeNode In nodes
+        If node.Checked Then
+            SqlHelper.ExecuteNonQuery(conStr, CommandType.Text,
+                "INSERT INTO RoleMenus VALUES (@RoleId,@MenuCode)",
+                New SqlParameter("@RoleId", roleId),
+                New SqlParameter("@MenuCode", node.Tag))
+        End If
+        SaveCheckedNodes(node.Nodes)
+    Next
+End Sub
+----------------------------------
+If isSuperAdmin Then
+    For Each ctrl As Control In Me.Controls
+        ctrl.Enabled = True
+    Next
+End If
+
+
+
+************************ASp.net MVC
+INSERT INTO Menus (MenuCode, MenuName, Url)
+VALUES
+('SALES_INVOICE', 'Sales Invoice', '/Sales/Invoice'),
+('PURCHASE_ORDER', 'Purchase Order', '/Purchase/Order');
+
+******************************************Create Authorization Filter
+Public Class MenuAuthorizeAttribute
+    Inherits AuthorizeAttribute
+
+    Public Property MenuCode As String
+
+    Protected Overrides Function AuthorizeCore(httpContext As HttpContextBase) As Boolean
+        Dim roleId = CInt(httpContext.Session("RoleId"))
+
+        Dim dt = SqlHelper.ExecuteDataset(
+            ConfigurationManager.ConnectionStrings("DB").ConnectionString,
+            CommandType.Text,
+            "SELECT 1 FROM RoleMenus WHERE RoleId=@RoleId AND MenuCode=@MenuCode",
+            New SqlParameter("@RoleId", roleId),
+            New SqlParameter("@MenuCode", MenuCode)
+        ).Tables(0)
+
+        Return dt.Rows.Count > 0
+    End Function
+End Class
+
+*******************************************Controller
+<MenuAuthorize(MenuCode:="SALES_INVOICE")>
+Public Function Invoice() As ActionResult
+    Return View()
+End Function
+
+*****************_Layout.vbhtml
+@If CType(Session("MenuList"), List(Of String)).Contains("SALES_INVOICE") Then
+    @<li><a href="/Sales/Invoice">Sales Invoice</a></li>
+End If
+---------------------Session Load Once at Login
+Session("MenuList") = dt.AsEnumerable().
+                        Select(Function(r) r("MenuCode").ToString()).
+                        ToList()
+
+
+
+
+*******************************Asp.net MVC UI
+ASP.NET MVC – DYNAMIC SIDEBAR MENU
+🔹 A) Load Menu List at Login (ONCE)
+------------------------------------
+Session("MenuList") = SqlHelper.ExecuteDataset(
+    conStr,
+    CommandType.Text,
+    "SELECT m.MenuCode, m.MenuName, m.ParentMenuCode, m.Url
+     FROM Menus m
+     JOIN RoleMenus r ON m.MenuCode=r.MenuCode
+     WHERE r.RoleId=@RoleId AND m.Active='Y'",
+    New SqlParameter("@RoleId", roleId)
+).Tables(0)
+
+Sidebar in _Layout.vbhtml
+-------------------------------
+@Code
+    Dim menus = CType(Session("MenuList"), DataTable)
+End Code
+
+<ul class="sidebar">
+@For Each parent In menus.Select("ParentMenuCode IS NULL")
+    @<li>
+        <span>@parent("MenuName")</span>
+        <ul>
+        @For Each child In menus.Select("ParentMenuCode='" & parent("MenuCode") & "'")
+            @<li>
+                <a href="@child("Url")">@child("MenuName")</a>
+            </li>
+        Next
+        </ul>
+    </li>
+Next
+</ul>
+
+*****************************************
+ALTER TABLE Roles ADD IsSuperAdmin BIT DEFAULT 0;
+------------------------------------
+Public Class MenuAuthorizeAttribute
+    Inherits AuthorizeAttribute
+
+    Public Property MenuCode As String
+
+    Protected Overrides Function AuthorizeCore(ctx As HttpContextBase) As Boolean
+        Dim isSuper = CBool(ctx.Session("IsSuperAdmin"))
+        If isSuper Then Return True
+
+        Dim menus = CType(ctx.Session("MenuList"), DataTable)
+        Return menus.Select("MenuCode='" & MenuCode & "'").Length > 0
+    End Function
+End Class
+
+**************************controller
+<MenuAuthorize(MenuCode:="SALES_INVOICE")>
+Public Function Invoice() As ActionResult
+    Return View()
+End Function
+
+*************************************
+********************************************WEB API Security
+ARCHITECTURE (WHAT WE ARE BUILDING)
+-----------------------------------------
+[ MVC / WinForms / Mobile ]
+          ↓  (Login)
+      /api/auth/token
+          ↓  (JWT)
+[ API Controllers ]
+          ↓
+ Role + Menu Authorization
+
+----------------------------------------
+CREATE TABLE Users (
+    UserId INT IDENTITY PRIMARY KEY,
+    UserName NVARCHAR(50),
+    PasswordHash NVARCHAR(200),
+    RoleId INT,
+    Active BIT
+);
+
+------------------------------------
+Install NuGet Packages
+-------------------------
+System.IdentityModel.Tokens.Jwt
+Microsoft.Owin.Security.Jwt
+
+----------------------------------AuthController (VB.NET)
+Imports System.IdentityModel.Tokens.Jwt
+Imports Microsoft.IdentityModel.Tokens
+Imports System.Security.Claims
+Imports System.Text
+
+Public Class AuthController
+    Inherits ApiController
+
+    <HttpPost>
+    <Route("api/auth/token")>
+    Public Function Token(login As LoginModel) As IHttpActionResult
+
+        ' Validate user
+        Dim dt = SqlHelper.ExecuteDataset(conStr, CommandType.Text,
+            "SELECT u.UserId,u.UserName,u.RoleId,r.IsSuperAdmin
+             FROM Users u
+             JOIN Roles r ON u.RoleId=r.RoleId
+             WHERE u.UserName=@U AND u.PasswordHash=@P AND u.Active=1",
+            New SqlParameter("@U", login.UserName),
+            New SqlParameter("@P", Hash(login.Password))
+        ).Tables(0)
+
+        If dt.Rows.Count = 0 Then
+            Return Unauthorized()
+        End If
+
+        Dim row = dt.Rows(0)
+
+        Dim claims = New List(Of Claim) From {
+            New Claim("UserId", row("UserId").ToString()),
+            New Claim("RoleId", row("RoleId").ToString()),
+            New Claim("IsSuperAdmin", row("IsSuperAdmin").ToString())
+        }
+
+        Dim key = New SymmetricSecurityKey(Encoding.UTF8.GetBytes("ERP_SUPER_SECRET_KEY"))
+        Dim creds = New SigningCredentials(key, SecurityAlgorithms.HmacSha256)
+
+        Dim token = New JwtSecurityToken(
+            issuer:="ERP",
+            audience:="ERPUsers",
+            claims:=claims,
+            expires:=DateTime.Now.AddHours(8),
+            signingCredentials:=creds
+        )
+
+        Return Ok(New With {
+            .token = New JwtSecurityTokenHandler().WriteToken(token)
+        })
+    End Function
+End Class
+**************************************
+API AUTHORIZATION FILTER (MENU-WISE)
+🔹 Custom Attribute
+----------------------------
+Imports System.IdentityModel.Tokens.Jwt
+Imports System.Net
+Imports System.Net.Http
+Imports System.Web.Http.Controllers
+Imports System.Web.Http.Filters
+
+Public Class ApiMenuAuthorizeAttribute
+    Inherits AuthorizationFilterAttribute
+
+    Public Property MenuCode As String
+
+    Public Overrides Sub OnAuthorization(ctx As HttpActionContext)
+
+        Dim auth = ctx.Request.Headers.Authorization
+        If auth Is Nothing OrElse auth.Scheme <> "Bearer" Then
+            ctx.Response = ctx.Request.CreateResponse(HttpStatusCode.Unauthorized)
+            Exit Sub
+        End If
+
+        Dim handler As New JwtSecurityTokenHandler()
+        Dim token = handler.ReadJwtToken(auth.Parameter)
+
+        Dim isSuper = token.Claims.First(Function(c) c.Type = "IsSuperAdmin").Value = "True"
+        If isSuper Then Exit Sub
+
+        Dim roleId = token.Claims.First(Function(c) c.Type = "RoleId").Value
+
+        Dim dt = SqlHelper.ExecuteDataset(conStr, CommandType.Text,
+            "SELECT 1 FROM RoleMenus WHERE RoleId=@R AND MenuCode=@M",
+            New SqlParameter("@R", roleId),
+            New SqlParameter("@M", MenuCode)
+        ).Tables(0)
+
+        If dt.Rows.Count = 0 Then
+            ctx.Response = ctx.Request.CreateResponse(HttpStatusCode.Forbidden)
+        End If
+    End Sub
+End Class
+
+----------------------------------------------------
+PROTECT API CONTROLLERS
+--------------------------
+<ApiMenuAuthorize(MenuCode:="SALES_INVOICE")>
+Public Class SalesController
+    Inherits ApiController
+
+    <HttpGet>
+    Public Function GetInvoice(id As Integer) As IHttpActionResult
+        Return Ok("Secure Invoice Data")
+    End Function
+End Class
+
+--------------------------------------------
+*************************************************
+*****************************************************
+CALL API FROM MVC / WINFORMS
+🔹 Add Token to Header
+----------------------------------------
+client.DefaultRequestHeaders.Authorization =
+    New AuthenticationHeaderValue("Bearer", token)
+
+Example API Call
+---------------------------
+Dim response = Await client.GetAsync("https://site/api/sales/getinvoice/1")
+
+CREATE TABLE RefreshTokens (
+    TokenId INT IDENTITY PRIMARY KEY,
+    UserId INT NOT NULL,
+    RefreshToken NVARCHAR(200) UNIQUE,
+    ExpiryDate DATETIME,
+    IsRevoked BIT DEFAULT 0,
+    CreatedDate DATETIME DEFAULT GETDATE()
+);
+--------------------------------------
+AuthController – Login
+----------------------------
+<HttpPost>
+<Route("api/auth/login")>
+Public Function Login(model As LoginModel) As IHttpActionResult
+
+    ' Validate user (same as before)
+    ' ------------------------------
+
+    Dim accessToken = GenerateJwt(userRow)
+
+    Dim refreshToken As String = Guid.NewGuid().ToString()
+
+    SqlHelper.ExecuteNonQuery(conStr, CommandType.Text,
+        "INSERT INTO RefreshTokens (UserId, RefreshToken, ExpiryDate)
+         VALUES (@U,@T,DATEADD(day,7,GETDATE()))",
+        New SqlParameter("@U", userId),
+        New SqlParameter("@T", refreshToken)
+    )
+
+    Return Ok(New With {
+        .access_token = accessToken,
+        .refresh_token = refreshToken
+    })
+End Function
+
+------------------------REFRESH TOKEN API
+<HttpPost>
+<Route("api/auth/refresh")>
+Public Function RefreshToken(model As RefreshRequest) As IHttpActionResult
+
+    Dim dt = SqlHelper.ExecuteDataset(conStr, CommandType.Text,
+        "SELECT UserId FROM RefreshTokens
+         WHERE RefreshToken=@T AND IsRevoked=0 AND ExpiryDate>GETDATE()",
+        New SqlParameter("@T", model.RefreshToken)
+    ).Tables(0)
+
+    If dt.Rows.Count = 0 Then
+        Return Unauthorized()
+    End If
+
+    Dim userId = CInt(dt.Rows(0)("UserId"))
+
+    ' Regenerate Access Token
+    Dim userRow = GetUser(userId)
+    Dim newAccessToken = GenerateJwt(userRow)
+
+    Return Ok(New With {.access_token = newAccessToken})
+End Function
+
+------------------------------LOGOUT / TOKEN REVOKE
+<HttpPost>
+<Route("api/auth/logout")>
+Public Function Logout(model As RefreshRequest) As IHttpActionResult
+    SqlHelper.ExecuteNonQuery(conStr, CommandType.Text,
+        "UPDATE RefreshTokens SET IsRevoked=1 WHERE RefreshToken=@T",
+        New SqlParameter("@T", model.RefreshToken)
+    )
+    Return Ok()
+End Function
+
+***********************Eample Flutter or Js Style
+if (response.status == 401) {
+   const refresh = await refreshToken();
+   setAccessToken(refresh.access_token);
+   retryRequest();
+}
+
+****************************************
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
