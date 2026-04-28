@@ -37,6 +37,9 @@ Partial Class Frmmktbarcode
         Dim DataGridViewCellStyle13 As System.Windows.Forms.DataGridViewCellStyle = New System.Windows.Forms.DataGridViewCellStyle()
         Dim DataGridViewCellStyle14 As System.Windows.Forms.DataGridViewCellStyle = New System.Windows.Forms.DataGridViewCellStyle()
         Me.Groupbox1 = New System.Windows.Forms.GroupBox()
+        Me.Chkregular = New System.Windows.Forms.CheckBox()
+        Me.chkpreprn = New System.Windows.Forms.CheckBox()
+        Me.Chkbox = New System.Windows.Forms.CheckBox()
         Me.Btninner = New System.Windows.Forms.Button()
         Me.txtpackno = New System.Windows.Forms.TextBox()
         Me.Label9 = New System.Windows.Forms.Label()
@@ -121,12 +124,6 @@ Partial Class Frmmktbarcode
         Me.chksel = New System.Windows.Forms.CheckBox()
         Me.BtnAdd = New System.Windows.Forms.Button()
         Me.dg = New System.Windows.Forms.DataGridView()
-        Me.Btnclear = New System.Windows.Forms.Button()
-        Me.BtnExit = New System.Windows.Forms.Button()
-        Me.BtnPrint = New System.Windows.Forms.Button()
-        Me.Label7 = New System.Windows.Forms.Label()
-        Me.cmbprinter = New System.Windows.Forms.ComboBox()
-        Me.txtboxsize = New System.Windows.Forms.TextBox()
         Me.Column1 = New System.Windows.Forms.DataGridViewCheckBoxColumn()
         Me.Column2 = New System.Windows.Forms.DataGridViewTextBoxColumn()
         Me.Column3 = New System.Windows.Forms.DataGridViewTextBoxColumn()
@@ -149,6 +146,14 @@ Partial Class Frmmktbarcode
         Me.Column32 = New System.Windows.Forms.DataGridViewTextBoxColumn()
         Me.Column30 = New System.Windows.Forms.DataGridViewTextBoxColumn()
         Me.Column33 = New System.Windows.Forms.DataGridViewTextBoxColumn()
+        Me.Btnclear = New System.Windows.Forms.Button()
+        Me.BtnExit = New System.Windows.Forms.Button()
+        Me.BtnPrint = New System.Windows.Forms.Button()
+        Me.Label7 = New System.Windows.Forms.Label()
+        Me.cmbprinter = New System.Windows.Forms.ComboBox()
+        Me.txtboxsize = New System.Windows.Forms.TextBox()
+        Me.Label10 = New System.Windows.Forms.Label()
+        Me.cmbcut = New System.Windows.Forms.ComboBox()
         Me.Groupbox1.SuspendLayout()
         CType(Me.dgas, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.dgph, System.ComponentModel.ISupportInitialize).BeginInit()
@@ -161,6 +166,11 @@ Partial Class Frmmktbarcode
         'Groupbox1
         '
         Me.Groupbox1.BackColor = System.Drawing.Color.LightCyan
+        Me.Groupbox1.Controls.Add(Me.Label10)
+        Me.Groupbox1.Controls.Add(Me.cmbcut)
+        Me.Groupbox1.Controls.Add(Me.Chkregular)
+        Me.Groupbox1.Controls.Add(Me.chkpreprn)
+        Me.Groupbox1.Controls.Add(Me.Chkbox)
         Me.Groupbox1.Controls.Add(Me.Btninner)
         Me.Groupbox1.Controls.Add(Me.txtpackno)
         Me.Groupbox1.Controls.Add(Me.Label9)
@@ -239,6 +249,39 @@ Partial Class Frmmktbarcode
         Me.Groupbox1.Size = New System.Drawing.Size(1421, 754)
         Me.Groupbox1.TabIndex = 1
         Me.Groupbox1.TabStop = False
+        '
+        'Chkregular
+        '
+        Me.Chkregular.AutoSize = True
+        Me.Chkregular.Font = New System.Drawing.Font("Microsoft Sans Serif", 8.25!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.Chkregular.Location = New System.Drawing.Point(1098, 82)
+        Me.Chkregular.Name = "Chkregular"
+        Me.Chkregular.Size = New System.Drawing.Size(70, 17)
+        Me.Chkregular.TabIndex = 99
+        Me.Chkregular.Text = "Regular"
+        Me.Chkregular.UseVisualStyleBackColor = True
+        '
+        'chkpreprn
+        '
+        Me.chkpreprn.AutoSize = True
+        Me.chkpreprn.Font = New System.Drawing.Font("Microsoft Sans Serif", 8.25!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.chkpreprn.Location = New System.Drawing.Point(1098, 47)
+        Me.chkpreprn.Name = "chkpreprn"
+        Me.chkpreprn.Size = New System.Drawing.Size(114, 17)
+        Me.chkpreprn.TabIndex = 98
+        Me.chkpreprn.Text = "Addres PrePrint"
+        Me.chkpreprn.UseVisualStyleBackColor = True
+        '
+        'Chkbox
+        '
+        Me.Chkbox.AutoSize = True
+        Me.Chkbox.Font = New System.Drawing.Font("Microsoft Sans Serif", 8.25!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.Chkbox.Location = New System.Drawing.Point(1229, 101)
+        Me.Chkbox.Name = "Chkbox"
+        Me.Chkbox.Size = New System.Drawing.Size(98, 17)
+        Me.Chkbox.TabIndex = 97
+        Me.Chkbox.Text = "Box Barcode"
+        Me.Chkbox.UseVisualStyleBackColor = True
         '
         'Btninner
         '
@@ -554,34 +597,37 @@ Partial Class Frmmktbarcode
         '
         Me.chkgstmrp.AutoSize = True
         Me.chkgstmrp.Font = New System.Drawing.Font("Microsoft Sans Serif", 8.25!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.chkgstmrp.Location = New System.Drawing.Point(1099, 103)
+        Me.chkgstmrp.Location = New System.Drawing.Point(1302, 26)
         Me.chkgstmrp.Name = "chkgstmrp"
         Me.chkgstmrp.Size = New System.Drawing.Size(132, 17)
         Me.chkgstmrp.TabIndex = 64
         Me.chkgstmrp.Text = "Revised GST MRP"
         Me.chkgstmrp.UseVisualStyleBackColor = True
+        Me.chkgstmrp.Visible = False
         '
         'chkprima
         '
         Me.chkprima.AutoSize = True
         Me.chkprima.Font = New System.Drawing.Font("Microsoft Sans Serif", 8.25!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.chkprima.Location = New System.Drawing.Point(1098, 44)
+        Me.chkprima.Location = New System.Drawing.Point(1302, 12)
         Me.chkprima.Name = "chkprima"
         Me.chkprima.Size = New System.Drawing.Size(91, 17)
         Me.chkprima.TabIndex = 63
         Me.chkprima.Text = "Prima Small"
         Me.chkprima.UseVisualStyleBackColor = True
+        Me.chkprima.Visible = False
         '
         'chkecom
         '
         Me.chkecom.AutoSize = True
         Me.chkecom.Font = New System.Drawing.Font("Microsoft Sans Serif", 8.25!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.chkecom.Location = New System.Drawing.Point(1098, 82)
+        Me.chkecom.Location = New System.Drawing.Point(1267, 5)
         Me.chkecom.Name = "chkecom"
         Me.chkecom.Size = New System.Drawing.Size(126, 17)
         Me.chkecom.TabIndex = 62
         Me.chkecom.Text = "E-Commerce-Print"
         Me.chkecom.UseVisualStyleBackColor = True
+        Me.chkecom.Visible = False
         '
         'chkmfgdate
         '
@@ -775,7 +821,7 @@ Partial Class Frmmktbarcode
         '
         Me.Label2.AutoSize = True
         Me.Label2.Font = New System.Drawing.Font("Microsoft Sans Serif", 8.25!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.Label2.Location = New System.Drawing.Point(838, 29)
+        Me.Label2.Location = New System.Drawing.Point(796, 30)
         Me.Label2.Name = "Label2"
         Me.Label2.Size = New System.Drawing.Size(21, 13)
         Me.Label2.TabIndex = 50
@@ -784,7 +830,7 @@ Partial Class Frmmktbarcode
         'cmbfit
         '
         Me.cmbfit.FormattingEnabled = True
-        Me.cmbfit.Location = New System.Drawing.Point(865, 26)
+        Me.cmbfit.Location = New System.Drawing.Point(820, 26)
         Me.cmbfit.Name = "cmbfit"
         Me.cmbfit.Size = New System.Drawing.Size(121, 21)
         Me.cmbfit.TabIndex = 49
@@ -1088,62 +1134,6 @@ Partial Class Frmmktbarcode
         Me.dg.Size = New System.Drawing.Size(1349, 421)
         Me.dg.TabIndex = 18
         '
-        'Btnclear
-        '
-        Me.Btnclear.Font = New System.Drawing.Font("Microsoft Sans Serif", 9.0!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.Btnclear.Location = New System.Drawing.Point(331, 543)
-        Me.Btnclear.Name = "Btnclear"
-        Me.Btnclear.Size = New System.Drawing.Size(75, 23)
-        Me.Btnclear.TabIndex = 17
-        Me.Btnclear.Text = "Clear"
-        Me.Btnclear.UseVisualStyleBackColor = True
-        '
-        'BtnExit
-        '
-        Me.BtnExit.Font = New System.Drawing.Font("Microsoft Sans Serif", 9.0!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.BtnExit.Location = New System.Drawing.Point(612, 569)
-        Me.BtnExit.Name = "BtnExit"
-        Me.BtnExit.Size = New System.Drawing.Size(75, 23)
-        Me.BtnExit.TabIndex = 16
-        Me.BtnExit.Text = "Exit"
-        Me.BtnExit.UseVisualStyleBackColor = True
-        '
-        'BtnPrint
-        '
-        Me.BtnPrint.Font = New System.Drawing.Font("Microsoft Sans Serif", 9.0!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.BtnPrint.Location = New System.Drawing.Point(253, 544)
-        Me.BtnPrint.Name = "BtnPrint"
-        Me.BtnPrint.Size = New System.Drawing.Size(75, 23)
-        Me.BtnPrint.TabIndex = 15
-        Me.BtnPrint.Text = "Print"
-        Me.BtnPrint.UseVisualStyleBackColor = True
-        '
-        'Label7
-        '
-        Me.Label7.AutoSize = True
-        Me.Label7.Font = New System.Drawing.Font("Microsoft Sans Serif", 8.25!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.Label7.Location = New System.Drawing.Point(6, 75)
-        Me.Label7.Name = "Label7"
-        Me.Label7.Size = New System.Drawing.Size(44, 13)
-        Me.Label7.TabIndex = 13
-        Me.Label7.Text = "Printer"
-        '
-        'cmbprinter
-        '
-        Me.cmbprinter.FormattingEnabled = True
-        Me.cmbprinter.Location = New System.Drawing.Point(51, 72)
-        Me.cmbprinter.Name = "cmbprinter"
-        Me.cmbprinter.Size = New System.Drawing.Size(289, 21)
-        Me.cmbprinter.TabIndex = 12
-        '
-        'txtboxsize
-        '
-        Me.txtboxsize.Location = New System.Drawing.Point(742, 571)
-        Me.txtboxsize.Name = "txtboxsize"
-        Me.txtboxsize.Size = New System.Drawing.Size(100, 20)
-        Me.txtboxsize.TabIndex = 85
-        Me.txtboxsize.Visible = False
-        '
         'Column1
         '
         Me.Column1.HeaderText = "Sel"
@@ -1270,6 +1260,80 @@ Partial Class Frmmktbarcode
         '
         Me.Column33.HeaderText = "Itmsgrpcod"
         Me.Column33.Name = "Column33"
+        '
+        'Btnclear
+        '
+        Me.Btnclear.Font = New System.Drawing.Font("Microsoft Sans Serif", 9.0!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.Btnclear.Location = New System.Drawing.Point(331, 543)
+        Me.Btnclear.Name = "Btnclear"
+        Me.Btnclear.Size = New System.Drawing.Size(75, 23)
+        Me.Btnclear.TabIndex = 17
+        Me.Btnclear.Text = "Clear"
+        Me.Btnclear.UseVisualStyleBackColor = True
+        '
+        'BtnExit
+        '
+        Me.BtnExit.Font = New System.Drawing.Font("Microsoft Sans Serif", 9.0!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.BtnExit.Location = New System.Drawing.Point(612, 569)
+        Me.BtnExit.Name = "BtnExit"
+        Me.BtnExit.Size = New System.Drawing.Size(75, 23)
+        Me.BtnExit.TabIndex = 16
+        Me.BtnExit.Text = "Exit"
+        Me.BtnExit.UseVisualStyleBackColor = True
+        '
+        'BtnPrint
+        '
+        Me.BtnPrint.Font = New System.Drawing.Font("Microsoft Sans Serif", 9.0!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.BtnPrint.Location = New System.Drawing.Point(253, 544)
+        Me.BtnPrint.Name = "BtnPrint"
+        Me.BtnPrint.Size = New System.Drawing.Size(75, 23)
+        Me.BtnPrint.TabIndex = 15
+        Me.BtnPrint.Text = "Print"
+        Me.BtnPrint.UseVisualStyleBackColor = True
+        '
+        'Label7
+        '
+        Me.Label7.AutoSize = True
+        Me.Label7.Font = New System.Drawing.Font("Microsoft Sans Serif", 8.25!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.Label7.Location = New System.Drawing.Point(6, 75)
+        Me.Label7.Name = "Label7"
+        Me.Label7.Size = New System.Drawing.Size(44, 13)
+        Me.Label7.TabIndex = 13
+        Me.Label7.Text = "Printer"
+        '
+        'cmbprinter
+        '
+        Me.cmbprinter.FormattingEnabled = True
+        Me.cmbprinter.Location = New System.Drawing.Point(51, 72)
+        Me.cmbprinter.Name = "cmbprinter"
+        Me.cmbprinter.Size = New System.Drawing.Size(289, 21)
+        Me.cmbprinter.TabIndex = 12
+        '
+        'txtboxsize
+        '
+        Me.txtboxsize.Location = New System.Drawing.Point(742, 571)
+        Me.txtboxsize.Name = "txtboxsize"
+        Me.txtboxsize.Size = New System.Drawing.Size(100, 20)
+        Me.txtboxsize.TabIndex = 85
+        Me.txtboxsize.Visible = False
+        '
+        'Label10
+        '
+        Me.Label10.AutoSize = True
+        Me.Label10.Font = New System.Drawing.Font("Microsoft Sans Serif", 8.25!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.Label10.Location = New System.Drawing.Point(942, 29)
+        Me.Label10.Name = "Label10"
+        Me.Label10.Size = New System.Drawing.Size(26, 13)
+        Me.Label10.TabIndex = 101
+        Me.Label10.Text = "Cut"
+        '
+        'cmbcut
+        '
+        Me.cmbcut.FormattingEnabled = True
+        Me.cmbcut.Location = New System.Drawing.Point(970, 25)
+        Me.cmbcut.Name = "cmbcut"
+        Me.cmbcut.Size = New System.Drawing.Size(121, 21)
+        Me.cmbcut.TabIndex = 100
         '
         'Frmmktbarcode
         '
@@ -1405,4 +1469,9 @@ Partial Class Frmmktbarcode
     Friend WithEvents Column32 As DataGridViewTextBoxColumn
     Friend WithEvents Column30 As DataGridViewTextBoxColumn
     Friend WithEvents Column33 As DataGridViewTextBoxColumn
+    Friend WithEvents Chkregular As CheckBox
+    Friend WithEvents chkpreprn As CheckBox
+    Friend WithEvents Chkbox As CheckBox
+    Friend WithEvents Label10 As Label
+    Friend WithEvents cmbcut As ComboBox
 End Class

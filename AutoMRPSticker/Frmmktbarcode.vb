@@ -144,7 +144,9 @@ Public Class Frmmktbarcode
 
         cmbyr.Text = mperiod
         Call loadfit()
+        Call loadcut()
         cmbfit.Text = ""
+        cmbcut.Text = ""
         ScanTimer.Interval = 300
 
         Call unoopen()
@@ -334,19 +336,53 @@ Public Class Frmmktbarcode
     End Sub
 
     Private Sub loadfit()
-        msql = "select k.fit from ( " _
-              & " select case when len(rtrim(ltrim(isnull(u_fitname,''))))>0 and charindex('/',u_fitname)>0   then substring(u_fitname,1,charindex('/',u_fitname)-1) else '' end fit, " _
-              & " case when len(rtrim(ltrim(isnull(u_fitname,''))))>0 and charindex('/',substring(u_fitname,charindex('/',u_fitname)+1,30))>0 then substring(substring(u_fitname,charindex('/',u_fitname)+1,30),1,charindex('/',substring(u_fitname,charindex('/',u_fitname)+1,30))-1) else '' end cut " _
-              & " from oitm  where len(rtrim(ltrim(isnull(u_fitname,''))))>0 " _
-              & "  group by case when len(rtrim(ltrim(isnull(u_fitname,''))))>0 and charindex('/',u_fitname)>0   then substring(u_fitname,1,charindex('/',u_fitname)-1) else '' end ," _
-              & " case when len(rtrim(ltrim(isnull(u_fitname,''))))>0 and charindex('/',substring(u_fitname,charindex('/',u_fitname)+1,30))>0 then substring(substring(u_fitname,charindex('/',u_fitname)+1,30),1,charindex('/',substring(u_fitname,charindex('/',u_fitname)+1,30))-1) else '' end ) k " _
-              & "  where isnull(k.fit,'')<>'' group by k.fit  order by k.fit"
+        'msql = "select k.fit from ( " _
+        '      & " select case when len(rtrim(ltrim(isnull(u_fitname,''))))>0 and charindex('/',u_fitname)>0   then substring(u_fitname,1,charindex('/',u_fitname)-1) else '' end fit, " _
+        '      & " case when len(rtrim(ltrim(isnull(u_fitname,''))))>0 and charindex('/',substring(u_fitname,charindex('/',u_fitname)+1,30))>0 then substring(substring(u_fitname,charindex('/',u_fitname)+1,30),1,charindex('/',substring(u_fitname,charindex('/',u_fitname)+1,30))-1) else '' end cut " _
+        '      & " from oitm  where len(rtrim(ltrim(isnull(u_fitname,''))))>0 " _
+        '      & "  group by case when len(rtrim(ltrim(isnull(u_fitname,''))))>0 and charindex('/',u_fitname)>0   then substring(u_fitname,1,charindex('/',u_fitname)-1) else '' end ," _
+        '      & " case when len(rtrim(ltrim(isnull(u_fitname,''))))>0 and charindex('/',substring(u_fitname,charindex('/',u_fitname)+1,30))>0 then substring(substring(u_fitname,charindex('/',u_fitname)+1,30),1,charindex('/',substring(u_fitname,charindex('/',u_fitname)+1,30))-1) else '' end ) k " _
+        '      & "  where isnull(k.fit,'')<>'' group by k.fit  order by k.fit"
+
+        msql = "select k.fit from (SELECT u_fitname,  LTRIM(RTRIM(LEFT(CleanText,CASE WHEN CHARINDEX('/', CleanText) > 0 THEN CHARINDEX('/', CleanText) - 1 ELSE LEN(CleanText) END))) AS Fit,
+                 LTRIM(RTRIM(CASE WHEN CHARINDEX('/', CleanText) > 0 THEN LEFT(SUBSTRING(CleanText, CHARINDEX('/', CleanText) + 1, LEN(CleanText)),
+                    CASE WHEN CHARINDEX('/', SUBSTRING(CleanText, CHARINDEX('/', CleanText) + 1, LEN(CleanText))) > 0
+                        THEN CHARINDEX('/', SUBSTRING(CleanText, CHARINDEX('/', CleanText) + 1, LEN(CleanText))) - 1
+                        ELSE LEN(CleanText) END ) ELSE '' END)) AS Cut
+                 FROM (SELECT u_fitname,REPLACE(REPLACE(u_fitname, ' / ', '/'), ' /', '/') AS CleanText FROM oitm where isnull(u_fitname,'')<>''
+                 ) A) k group by k.fit "
+
+
 
         Dim dt As DataTable = getDataTable(msql)
         If dt.Rows.Count > 0 Then
             cmbfit.Items.Clear()
             For Each rw As DataRow In dt.Rows
                 cmbfit.Items.Add(rw("fit"))
+            Next
+        End If
+
+
+
+    End Sub
+
+    Private Sub loadcut()
+
+        msql = "select k.cut from (SELECT u_fitname,  LTRIM(RTRIM(LEFT(CleanText,CASE WHEN CHARINDEX('/', CleanText) > 0 THEN CHARINDEX('/', CleanText) - 1 ELSE LEN(CleanText) END))) AS Fit,
+                 LTRIM(RTRIM(CASE WHEN CHARINDEX('/', CleanText) > 0 THEN LEFT(SUBSTRING(CleanText, CHARINDEX('/', CleanText) + 1, LEN(CleanText)),
+                    CASE WHEN CHARINDEX('/', SUBSTRING(CleanText, CHARINDEX('/', CleanText) + 1, LEN(CleanText))) > 0
+                        THEN CHARINDEX('/', SUBSTRING(CleanText, CHARINDEX('/', CleanText) + 1, LEN(CleanText))) - 1
+                        ELSE LEN(CleanText) END ) ELSE '' END)) AS Cut
+                 FROM (SELECT u_fitname,REPLACE(REPLACE(u_fitname, ' / ', '/'), ' /', '/') AS CleanText FROM oitm where isnull(u_fitname,'')<>''
+                 ) A) k group by k.cut "
+
+
+
+        Dim dt As DataTable = getDataTable(msql)
+        If dt.Rows.Count > 0 Then
+            cmbcut.Items.Clear()
+            For Each rw As DataRow In dt.Rows
+                cmbcut.Items.Add(rw("cut"))
             Next
         End If
 
@@ -472,14 +508,29 @@ Public Class Frmmktbarcode
                     dg.Rows(n).Cells(15).Value = rw("Size2")
                     dg.Rows(n).Cells(15).ReadOnly = True
                     If Len(Trim(cmbfit.Text)) > 0 Then
-                        dg.Rows(n).Cells(16).Value = cmbfit.Text
+                        If Trim(cmbfit.Text) = "0" Then
+                            dg.Rows(n).Cells(16).Value = ""
+                        Else
+                            dg.Rows(n).Cells(16).Value = cmbfit.Text
+                        End If
+
                     Else
                         dg.Rows(n).Cells(16).Value = rw("fit")
                     End If
 
                     dg.Rows(n).Cells(16).ReadOnly = True
-                    If chkliberty.Checked = True Then
-                        dg.Rows(n).Cells(17).Value = "LIBERTY CUT"
+                    'If chkliberty.Checked = True Then
+                    '    dg.Rows(n).Cells(17).Value = "LIBERTY CUT"
+                    'Else
+                    '    dg.Rows(n).Cells(17).Value = rw("cut")
+                    'End If
+                    If Len(Trim(cmbcut.Text)) > 0 Then
+                        If Trim(cmbcut.Text) = "0" Then
+                            dg.Rows(n).Cells(17).Value = ""
+                        Else
+                            dg.Rows(n).Cells(17).Value = cmbcut.Text
+                        End If
+
                     Else
                         dg.Rows(n).Cells(17).Value = rw("cut")
                     End If
@@ -3103,13 +3154,31 @@ Public Class Frmmktbarcode
     End Sub
 
     Private Sub btntwoprn_Click(sender As System.Object, e As System.EventArgs) Handles btntwoprn.Click
+        'typeText = Trim(cmbtype.Text)
+        'Dim t1 = New Threading.Thread(Sub() speedprintHboth())
+        'Dim t2 = New Threading.Thread(Sub() speedprint2vertboth())
+        't1.Start()
+        't2.Start()
+
+
         typeText = Trim(cmbtype.Text)
-        Dim t1 = New Threading.Thread(Sub() speedprintHboth())
-        Dim t2 = New Threading.Thread(Sub() speedprint2vertboth())
+        Dim t1
+        Dim t2
+        If Chkregular.Checked = True Then
+            t1 = New Threading.Thread(Sub() speedprintHboth())
+            t2 = New Threading.Thread(Sub() speedprint2vertbothact())
+        Else
+            t1 = New Threading.Thread(Sub() speedprintHboth())
+            t2 = New Threading.Thread(Sub() speedprint2vertboth())
+        End If
+
+
+        'Dim t1 = New Threading.Thread(Sub() speedprintHboth())
+        '    Dim t2 = New Threading.Thread(Sub() speedprint2vertboth())
         'If MsgBox("Print!", vbYesNo) = vbYes Then
         t1.Start()
         t2.Start()
-        'End If
+
 
     End Sub
 
@@ -3786,7 +3855,7 @@ Public Class Frmmktbarcode
 
     End Sub
 
-    Private Sub speedprintHboth()
+    Private Sub speedprintHbothPrevlin()
         Dim dir As String
 
         dir = System.AppDomain.CurrentDomain.BaseDirectory()
@@ -3820,119 +3889,119 @@ Public Class Frmmktbarcode
                 End If
 
                 FileSystem.PrintLine(fNum, "DIRECTION 0,0")
-                    FileSystem.PrintLine(fNum, "REFERENCE 0,0")
-                    FileSystem.PrintLine(fNum, "OFFSET 0 mm")
-                    FileSystem.PrintLine(fNum, "SPEED 7")
-                    FileSystem.PrintLine(fNum, "SET PEEL OFF")
-                    FileSystem.PrintLine(fNum, "SET CUTTER OFF")
+                FileSystem.PrintLine(fNum, "REFERENCE 0,0")
+                FileSystem.PrintLine(fNum, "OFFSET 0 mm")
+                FileSystem.PrintLine(fNum, "SPEED 7")
+                FileSystem.PrintLine(fNum, "SET PEEL OFF")
+                FileSystem.PrintLine(fNum, "SET CUTTER OFF")
                 FileSystem.PrintLine(fNum, "SET PARTIAL_CUTTER OFF")
                 If mos = "WIN" Then
                     FileSystem.PrintLine(fNum, "<xpml></page></xpml><xpml><page quantity='3' pitch='45.0 mm'></xpml>")
                 End If
                 FileSystem.PrintLine(fNum, "SET TEAR ON")
                 FileSystem.PrintLine(fNum, "CLS")
-                    'FileSystem.PrintLine(fNum, "BITMAP 283,312,4,40,1,àÿð?ÿøÿüÿþÿÿÿÿÿÿÀÿÿàÿð?ÿøÿøÿ€þÿüÿø?ÿø?ÿø?ÿ€   ø?ÿøÿ€     ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
-                    ' FileSystem.PrintLine(fNum, "BITMAP 505,133,5,32,1,ÿÿÿ¿ÿþÿøÿðÿàÿÀÿ€ÿ ŽüŽøŽðŒà‡ŒÀ?€€À  ÿÀ ÿà  ÿð ÿøÿþ ?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿïŸÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
-                    'FileSystem.PrintLine(fNum, "BITMAP 283,312,4,40,1,øÿÿü ÿÿþÿÿÿÿÿÿÿÿÿ€ÿÿÿÀÿÿà?ÿÿðÿÿøÿÿüÿÿü ÿÿþÿÿÿÿÿÿ€ÿÿÿÀÿÿàÿÿà?ÿÿ€?ÿü ?ÿð ?ÿà?ÿÿÀÿÿÿÿÿÿÿÿÿ ÿÿþ ÿÿþÿÿÀ  €  ?€  ?   þÿÿÿÿÿÿ ÿÿÿ€ÿÀ  €  ?   ?ÿÿÿÿ")
-                    ' FileSystem.PrintLine(fNum, "BITMAP 283,312,3,32,1,àÿð?ÿøÿüÿþÿÿÿÿÿÿÀÿÿàÿð?ÿøÿøÿ€þÿüÿø?ÿø?ÿø?ÿ€   ø?ÿøÿ€     ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+                'FileSystem.PrintLine(fNum, "BITMAP 283,312,4,40,1,àÿð?ÿøÿüÿþÿÿÿÿÿÿÀÿÿàÿð?ÿøÿøÿ€þÿüÿø?ÿø?ÿø?ÿ€   ø?ÿøÿ€     ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+                ' FileSystem.PrintLine(fNum, "BITMAP 505,133,5,32,1,ÿÿÿ¿ÿþÿøÿðÿàÿÀÿ€ÿ ŽüŽøŽðŒà‡ŒÀ?€€À  ÿÀ ÿà  ÿð ÿøÿþ ?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿïŸÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+                'FileSystem.PrintLine(fNum, "BITMAP 283,312,4,40,1,øÿÿü ÿÿþÿÿÿÿÿÿÿÿÿ€ÿÿÿÀÿÿà?ÿÿðÿÿøÿÿüÿÿü ÿÿþÿÿÿÿÿÿ€ÿÿÿÀÿÿàÿÿà?ÿÿ€?ÿü ?ÿð ?ÿà?ÿÿÀÿÿÿÿÿÿÿÿÿ ÿÿþ ÿÿþÿÿÀ  €  ?€  ?   þÿÿÿÿÿÿ ÿÿÿ€ÿÀ  €  ?   ?ÿÿÿÿ")
+                ' FileSystem.PrintLine(fNum, "BITMAP 283,312,3,32,1,àÿð?ÿøÿüÿþÿÿÿÿÿÿÀÿÿàÿð?ÿøÿøÿ€þÿüÿø?ÿø?ÿø?ÿ€   ø?ÿøÿ€     ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
 
-                    FileSystem.PrintLine(1, TAB(0), "BITMAP 388,213,4,40,1,øÿÿü ÿÿþÿÿÿÿÿÿÿÿÿ€ÿÿÿÀÿÿà?ÿÿðÿÿøÿÿüÿÿü ÿÿþÿÿÿÿÿÿ€ÿÿÿÀÿÿàÿÿà?ÿÿ€?ÿü ?ÿð ?ÿà?ÿÿÀÿÿÿÿÿÿÿÿÿ ÿÿþ ÿÿþÿÿÀ  €  ?€  ?   þÿÿÿÿÿÿ ÿÿÿ€ÿÀ  €  ?   ?ÿÿÿÿ")
+                FileSystem.PrintLine(1, TAB(0), "BITMAP 388,213,4,40,1,øÿÿü ÿÿþÿÿÿÿÿÿÿÿÿ€ÿÿÿÀÿÿà?ÿÿðÿÿøÿÿüÿÿü ÿÿþÿÿÿÿÿÿ€ÿÿÿÀÿÿàÿÿà?ÿÿ€?ÿü ?ÿð ?ÿà?ÿÿÀÿÿÿÿÿÿÿÿÿ ÿÿþ ÿÿþÿÿÀ  €  ?€  ?   þÿÿÿÿÿÿ ÿÿÿ€ÿÀ  €  ?   ?ÿÿÿÿ")
 
-                    '"₹"
-                    'PrintBitmap()
-                    FileSystem.PrintLine(fNum, TAB(0), "CODEPAGE 1252")
-                    FileSystem.PrintLine(fNum, TAB(0), "TEXT 538,253," & """" & "0" & """" & ",180,20,18," & """" & "MRP" & """")
-                    FileSystem.PrintLine(fNum, "TEXT 382,253," & """" & "0" & """" & ",180,20,18," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
-                    FileSystem.PrintLine(fNum, "TEXT 538,345," & """" & "0" & """" & ",180,11,12," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
-                    'TEXT 538,258,"0",180,9,9,"COLOUR :"
-                    FileSystem.PrintLine(fNum, "TEXT 538,311," & """" & "0" & """" & ",180,9,9," & """" & "COLOUR :" & """")
-                    FileSystem.PrintLine(fNum, "TEXT 538,283," & """" & "0" & """" & ",180,8,9," & """" & "COMMODITY :" & """")
-                    'TEXT 439,258,"ROMAN.TTF",180,1,9,"SL18-CYAN"
-                    FileSystem.PrintLine(fNum, "TEXT 439,311," & """" & "ROMAN.TTF" & """" & ",180,1,9," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+                '"₹"
+                'PrintBitmap()
+                FileSystem.PrintLine(fNum, TAB(0), "CODEPAGE 1252")
+                FileSystem.PrintLine(fNum, TAB(0), "TEXT 538,253," & """" & "0" & """" & ",180,20,18," & """" & "MRP" & """")
+                FileSystem.PrintLine(fNum, "TEXT 382,253," & """" & "0" & """" & ",180,20,18," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+                FileSystem.PrintLine(fNum, "TEXT 538,345," & """" & "0" & """" & ",180,11,12," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+                'TEXT 538,258,"0",180,9,9,"COLOUR :"
+                FileSystem.PrintLine(fNum, "TEXT 538,311," & """" & "0" & """" & ",180,9,9," & """" & "COLOUR :" & """")
+                FileSystem.PrintLine(fNum, "TEXT 538,283," & """" & "0" & """" & ",180,8,9," & """" & "COMMODITY :" & """")
+                'TEXT 439,258,"ROMAN.TTF",180,1,9,"SL18-CYAN"
+                FileSystem.PrintLine(fNum, "TEXT 439,311," & """" & "ROMAN.TTF" & """" & ",180,1,9," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
 
-                    FileSystem.PrintLine(fNum, "TEXT 410,283," & """" & "0" & """" & ",180,9,9," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
-                    FileSystem.PrintLine(fNum, "TEXT 367,169," & """" & "0" & """" & ",180,10,8," & """" & "Made in India" & """")
-
-
-                    'FileSystem.PrintLine(fNum, "TEXT 182,288," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                FileSystem.PrintLine(fNum, "TEXT 410,283," & """" & "0" & """" & ",180,9,9," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+                FileSystem.PrintLine(fNum, "TEXT 367,169," & """" & "0" & """" & ",180,10,8," & """" & "Made in India" & """")
 
 
-                    If chkpant.Checked = True Or dg.Rows(i).Cells(15).Value.ToString.Trim.Length > 0 Then
-                        FileSystem.PrintLine(fNum, "TEXT 182,278," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
-                        'Text(109, 249, "0", 180, 11, 10, "Length")
-                        FileSystem.PrintLine(fNum, "TEXT 109,275," & """" & "0" & """" & ",180,11,10," & """" & "Length" & """")
-                        'Text(182, 211, "0", 180, 9, 17, "Code:")
-                        FileSystem.PrintLine(fNum, "TEXT 538,201," & """" & "0" & """" & ",180,9,17," & """" & "Code:" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 475,206," & """" & "0" & """" & ",180,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
-                        'TEXT 63,198,"0",180,7,10,"(Inch)"
-                        FileSystem.PrintLine(fNum, "TEXT 419,188," & """" & "0" & """" & ",180,7,10," & """" & "(Inch)" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 538,150," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :1N" & """")
+                'FileSystem.PrintLine(fNum, "TEXT 182,288," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
 
-                        FileSystem.PrintLine(fNum, "QRCODE 182,202,L,4,A,180,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+
+                If chkpant.Checked = True Or dg.Rows(i).Cells(15).Value.ToString.Trim.Length > 0 Then
+                    FileSystem.PrintLine(fNum, "TEXT 182,278," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                    'Text(109, 249, "0", 180, 11, 10, "Length")
+                    FileSystem.PrintLine(fNum, "TEXT 109,275," & """" & "0" & """" & ",180,11,10," & """" & "Length" & """")
+                    'Text(182, 211, "0", 180, 9, 17, "Code:")
+                    FileSystem.PrintLine(fNum, "TEXT 538,201," & """" & "0" & """" & ",180,9,17," & """" & "Code:" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 475,206," & """" & "0" & """" & ",180,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                    'TEXT 63,198,"0",180,7,10,"(Inch)"
+                    FileSystem.PrintLine(fNum, "TEXT 419,188," & """" & "0" & """" & ",180,7,10," & """" & "(Inch)" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 538,150," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :1N" & """")
+
+                    FileSystem.PrintLine(fNum, "QRCODE 182,202,L,4,A,180,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
                     FileSystem.PrintLine(fNum, "TEXT 242,115," & """" & "0" & """" & ",180,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
                     FileSystem.PrintLine(fNum, "TEXT 267,131," & """" & "0" & """" & ",180,10,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                    FileSystem.PrintLine(fNum, "TEXT 352,131," & """" & "0" & """" & ",180,9,8," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+                    FileSystem.PrintLine(fNum, "TEXT 346,199," & """" & "ROMAN.TTF" & """" & ",180,1,7," & """" & "(Incl.of all Taxes)" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 120,307," & """" & "0" & """" & ",180,12,9," & """" & (Trim(dg.Rows(i).Cells(15).Value) & " cm") & """")
+                    FileSystem.PrintLine(fNum, "TEXT 182,311," & """" & "0" & """" & ",180,11,11," & """" & "Size:" & """")
+
+                Else
+                    If chktwin.Checked = True Then
+                        FileSystem.PrintLine(fNum, "TEXT 182,283," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 103,280," & """" & "0" & """" & ",180,8,10," & """" & "SLEEVE" & """")
+                        FileSystem.PrintLine(fNum, "TEXT 538,203," & """" & "0" & """" & ",180,11,20," & """" & "SIZE:" & """")
+                        FileSystem.PrintLine(fNum, "TEXT 475,206," & """" & "0" & """" & ",180,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 426,207," & """" & "0" & """" & ",180,12,21," & """" & "cm" & """")
+                        FileSystem.PrintLine(fNum, "TEXT 538,150," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :2N" & """")
+
+                        FileSystem.PrintLine(fNum, "QRCODE 182,202,L,4,A,180,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 242,115," & """" & "0" & """" & ",180,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 267,131," & """" & "0" & """" & ",180,10,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
                         FileSystem.PrintLine(fNum, "TEXT 352,131," & """" & "0" & """" & ",180,9,8," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
                         FileSystem.PrintLine(fNum, "TEXT 346,199," & """" & "ROMAN.TTF" & """" & ",180,1,7," & """" & "(Incl.of all Taxes)" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 120,307," & """" & "0" & """" & ",180,12,9," & """" & (Trim(dg.Rows(i).Cells(15).Value) & " cm") & """")
-                        FileSystem.PrintLine(fNum, "TEXT 182,311," & """" & "0" & """" & ",180,11,11," & """" & "Size:" & """")
+                        FileSystem.PrintLine(fNum, "TEXT 182,316," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & "(1+1) 2N" & """")
 
                     Else
-                        If chktwin.Checked = True Then
-                            FileSystem.PrintLine(fNum, "TEXT 182,283," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
-                            FileSystem.PrintLine(fNum, "TEXT 103,280," & """" & "0" & """" & ",180,8,10," & """" & "SLEEVE" & """")
-                            FileSystem.PrintLine(fNum, "TEXT 538,203," & """" & "0" & """" & ",180,11,20," & """" & "SIZE:" & """")
-                            FileSystem.PrintLine(fNum, "TEXT 475,206," & """" & "0" & """" & ",180,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
-                            FileSystem.PrintLine(fNum, "TEXT 426,207," & """" & "0" & """" & ",180,12,21," & """" & "cm" & """")
-                            FileSystem.PrintLine(fNum, "TEXT 538,150," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :2N" & """")
-
-                        FileSystem.PrintLine(fNum, "QRCODE 182,202,L,4,A,180,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
-                        FileSystem.PrintLine(fNum, "TEXT 242,115," & """" & "0" & """" & ",180,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
-                        FileSystem.PrintLine(fNum, "TEXT 267,131," & """" & "0" & """" & ",180,10,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
-                            FileSystem.PrintLine(fNum, "TEXT 352,131," & """" & "0" & """" & ",180,9,8," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
-                            FileSystem.PrintLine(fNum, "TEXT 346,199," & """" & "ROMAN.TTF" & """" & ",180,1,7," & """" & "(Incl.of all Taxes)" & """")
-                            FileSystem.PrintLine(fNum, "TEXT 182,316," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & "(1+1) 2N" & """")
-
+                        FileSystem.PrintLine(fNum, "TEXT 182,288," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 103,288," & """" & "0" & """" & ",180,8,10," & """" & "SLEEVE" & """")
+                        FileSystem.PrintLine(fNum, "TEXT 538,148," & """" & "0" & """" & ",180,11,20," & """" & "SIZE:" & """")
+                        FileSystem.PrintLine(fNum, "TEXT 475,148," & """" & "0" & """" & ",180,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 426,149," & """" & "0" & """" & ",180,12,21," & """" & "cm" & """")
+                        If chkset.Checked = True Then
+                            FileSystem.PrintLine(fNum, "TEXT 538,202," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :2N" & """")
                         Else
-                            FileSystem.PrintLine(fNum, "TEXT 182,288," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
-                            FileSystem.PrintLine(fNum, "TEXT 103,288," & """" & "0" & """" & ",180,8,10," & """" & "SLEEVE" & """")
-                            FileSystem.PrintLine(fNum, "TEXT 538,148," & """" & "0" & """" & ",180,11,20," & """" & "SIZE:" & """")
-                            FileSystem.PrintLine(fNum, "TEXT 475,148," & """" & "0" & """" & ",180,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
-                            FileSystem.PrintLine(fNum, "TEXT 426,149," & """" & "0" & """" & ",180,12,21," & """" & "cm" & """")
-                            If chkset.Checked = True Then
-                                FileSystem.PrintLine(fNum, "TEXT 538,202," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :2N" & """")
-                            Else
-                                FileSystem.PrintLine(fNum, "TEXT 538,202," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :1N" & """")
-                            End If
+                            FileSystem.PrintLine(fNum, "TEXT 538,202," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :1N" & """")
+                        End If
 
                         FileSystem.PrintLine(fNum, "QRCODE 182,202,L,4,A,180,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
                         FileSystem.PrintLine(fNum, "TEXT 242,115," & """" & "0" & """" & ",180,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
                         FileSystem.PrintLine(fNum, "TEXT 267,131," & """" & "0" & """" & ",180,10,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
-                            FileSystem.PrintLine(fNum, "TEXT 352,131," & """" & "0" & """" & ",180,9,8," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 352,131," & """" & "0" & """" & ",180,9,8," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
                         FileSystem.PrintLine(fNum, "TEXT 346,199," & """" & "ROMAN.TTF" & """" & ",180,1,7," & """" & "(Incl.of all Taxes)" & """")
                     End If
-                    End If
+                End If
 
 
 
-                    If Chkshirt.Checked = True Then
-                        'fit
-                        FileSystem.PrintLine(fNum, "TEXT 182,316," & """" & "0" & """" & ",180,8,9," & """" & Trim(dg.Rows(i).Cells(16).Value) & """")
-                        FileSystem.PrintLine(fNum, "TEXT 538,174," & """" & "0" & """" & ",180,8,9," & """" & Trim(dg.Rows(i).Cells(17).Value) & """")
-                    End If
+                If Chkshirt.Checked = True Then
+                    'fit
+                    FileSystem.PrintLine(fNum, "TEXT 182,316," & """" & "0" & """" & ",180,8,9," & """" & Trim(dg.Rows(i).Cells(16).Value) & """")
+                    FileSystem.PrintLine(fNum, "TEXT 538,174," & """" & "0" & """" & ",180,8,9," & """" & Trim(dg.Rows(i).Cells(17).Value) & """")
+                End If
 
 
-                    If chkmfg.Checked = False Then
-                        FileSystem.PrintLine(fNum, "TEXT 464,45," & """" & "0" & """" & ",180,8,7," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 444,23," & """" & "0" & """" & ",180,8,7," & """" & "address details are available in the box" & """")
-                    End If
-                    If mbarmsg = "Y" Then
+                If chkmfg.Checked = False Then
+                    FileSystem.PrintLine(fNum, "TEXT 464,45," & """" & "0" & """" & ",180,8,7," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 444,23," & """" & "0" & """" & ",180,8,7," & """" & "address details are available in the box" & """")
+                End If
+                If mbarmsg = "Y" Then
 
-                        FileSystem.PrintLine(fNum, "TEXT 543, 136," & """" & "0" & """" & ", 180, 7, 15," & """" & "_________________________________________________________" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 551, 99," & """" & "0" & """" & ", 180, 15, 18," & """" & "|" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 535, 86," & """" & "0" & """" & ", 180, 7, 10," & """" & "Consumer is free to open and inspect the product before buying it" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 543, 89," & """" & "0" & """" & ", 180, 7, 15," & """" & "_________________________________________________________" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 41, 99," & """" & "0" & """" & ", 180, 15, 18," & """" & "|" & """")
-                    End If
+                    FileSystem.PrintLine(fNum, "TEXT 543, 136," & """" & "0" & """" & ", 180, 7, 15," & """" & "_________________________________________________________" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 551, 99," & """" & "0" & """" & ", 180, 15, 18," & """" & "|" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 535, 86," & """" & "0" & """" & ", 180, 7, 10," & """" & "Consumer is free to open and inspect the product before buying it" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 543, 89," & """" & "0" & """" & ", 180, 7, 15," & """" & "_________________________________________________________" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 41, 99," & """" & "0" & """" & ", 180, 15, 18," & """" & "|" & """")
+                End If
 
                 If mautoscan = "N" Then
                     FileSystem.PrintLine(fNum, "PRINT 1," & Val(dg.Rows(i).Cells(14).Value))
@@ -3965,9 +4034,531 @@ Public Class Frmmktbarcode
 
     End Sub
 
+    Private Sub speedprintHboth()
+        Dim dir As String
 
+        dir = System.AppDomain.CurrentDomain.BaseDirectory()
+        mdir = Trim(dir) & "nsbarcodEH.txt"
+
+
+
+        Dim fNum As Integer = FileSystem.FreeFile()
+        FileSystem.FileOpen(fNum, mdir, OpenMode.Output, OpenAccess.Write, OpenShare.Shared, -1)
+
+        Dim rupeeSymbol As String = ChrW(&H20B9)
+        'Dim rupeeSymbol As String = ChrW(&H20B9)
+        For i As Integer = 0 To dg.Rows.Count - 1
+            Dim c As Boolean
+            c = dg.Rows(i).Cells(0).Value
+            If c = True Then
+                'PrintLine(1, TAB(0), DR.Item("firstdet"))
+                If mcutenable <> "Y" Then
+                    If mos = "WIN" Then
+                        FileSystem.PrintLine(fNum, "<xpml><page quantity='0' pitch='45.0 mm'></xpml>SIZE 69.10 mm, 45 mm")
+                    Else
+                        FileSystem.PrintLine(fNum, "SIZE 69.10 mm, 45 mm")
+                    End If
+
+                    FileSystem.PrintLine(fNum, "DIRECTION 0,0")
+                        FileSystem.PrintLine(fNum, "REFERENCE 0,0")
+                        FileSystem.PrintLine(fNum, "OFFSET 0 mm")
+                        FileSystem.PrintLine(fNum, "SPEED 7")
+                        FileSystem.PrintLine(fNum, "SET PEEL OFF")
+                        FileSystem.PrintLine(fNum, "SET CUTTER OFF")
+                    FileSystem.PrintLine(fNum, "SET PARTIAL_CUTTER OFF")
+                    If mos = "WIN" Then
+                        FileSystem.PrintLine(fNum, "<xpml></page></xpml><xpml><page quantity='3' pitch='45.0 mm'></xpml>SET TEAR ON")
+                    Else
+                        FileSystem.PrintLine(fNum, "SET TEAR ON")
+                    End If
+
+                    FileSystem.PrintLine(fNum, "CLS")
+                    Else
+                        FileSystem.PrintLine(fNum, "SIZE 69.10 mm, 45 mm")
+                    FileSystem.PrintLine(fNum, "GAP 3 mm,0 mm")
+                    FileSystem.PrintLine(fNum, "DIRECTION 0,0")
+                    FileSystem.PrintLine(fNum, "REFERENCE 0,0")
+                    FileSystem.PrintLine(fNum, "OFFSET 0 mm")
+                    FileSystem.PrintLine(fNum, "SPEED 7")
+                    FileSystem.PrintLine(fNum, "SET CUTTER ON")
+                    FileSystem.PrintLine(fNum, "CLS")
+                End If
+
+
+                FileSystem.PrintLine(1, TAB(0), "BITMAP 388,213,4,40,1,øÿÿü ÿÿþÿÿÿÿÿÿÿÿÿ€ÿÿÿÀÿÿà?ÿÿðÿÿøÿÿüÿÿü ÿÿþÿÿÿÿÿÿ€ÿÿÿÀÿÿàÿÿà?ÿÿ€?ÿü ?ÿð ?ÿà?ÿÿÀÿÿÿÿÿÿÿÿÿ ÿÿþ ÿÿþÿÿÀ  €  ?€  ?   þÿÿÿÿÿÿ ÿÿÿ€ÿÀ  €  ?   ?ÿÿÿÿ")
+
+                '"₹"
+                'PrintBitmap()
+                FileSystem.PrintLine(fNum, TAB(0), "CODEPAGE 1252")
+                FileSystem.PrintLine(fNum, TAB(0), "TEXT 538,253," & """" & "0" & """" & ",180,20,18," & """" & "MRP" & """")
+                FileSystem.PrintLine(fNum, "TEXT 382,253," & """" & "0" & """" & ",180,20,18," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+                FileSystem.PrintLine(fNum, "TEXT 538,345," & """" & "0" & """" & ",180,11,12," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+                FileSystem.PrintLine(fNum, "TEXT 538,311," & """" & "0" & """" & ",180,9,9," & """" & "COLOUR :" & """")
+                FileSystem.PrintLine(fNum, "TEXT 538,283," & """" & "0" & """" & ",180,8,9," & """" & "COMMODITY :" & """")
+                FileSystem.PrintLine(fNum, "TEXT 439,311," & """" & "ROMAN.TTF" & """" & ",180,1,9," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+                FileSystem.PrintLine(fNum, "TEXT 410,283," & """" & "0" & """" & ",180,9,9," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+                FileSystem.PrintLine(fNum, "TEXT 367,169," & """" & "0" & """" & ",180,10,8," & """" & "Made in India" & """")
+
+
+
+
+
+                If chkpant.Checked = True Or dg.Rows(i).Cells(15).Value.ToString.Trim.Length > 0 Then
+                    FileSystem.PrintLine(fNum, "TEXT 182,278," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                    FileSystem.PrintLine(fNum, "TEXT 109,275," & """" & "0" & """" & ",180,11,10," & """" & "Length" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 538,201," & """" & "0" & """" & ",180,9,17," & """" & "Code:" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 475,206," & """" & "0" & """" & ",180,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                    FileSystem.PrintLine(fNum, "TEXT 419,188," & """" & "0" & """" & ",180,7,10," & """" & "(Inch)" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 538,150," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :1N" & """")
+                    FileSystem.PrintLine(fNum, "QRCODE 182,202,L,4,A,180,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                    FileSystem.PrintLine(fNum, "TEXT 242,115," & """" & "0" & """" & ",180,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    FileSystem.PrintLine(fNum, "TEXT 267,131," & """" & "0" & """" & ",180,10,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                    FileSystem.PrintLine(fNum, "TEXT 352,131," & """" & "0" & """" & ",180,9,8," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+                    FileSystem.PrintLine(fNum, "TEXT 346,199," & """" & "ROMAN.TTF" & """" & ",180,1,7," & """" & "(Incl.of all Taxes)" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 120,307," & """" & "0" & """" & ",180,12,9," & """" & (Trim(dg.Rows(i).Cells(15).Value) & " cm") & """")
+                    FileSystem.PrintLine(fNum, "TEXT 182,311," & """" & "0" & """" & ",180,11,11," & """" & "Size:" & """")
+
+                Else
+                    If chktwin.Checked = True Then
+                        FileSystem.PrintLine(fNum, "TEXT 182,283," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 103,280," & """" & "0" & """" & ",180,8,10," & """" & "SLEEVE" & """")
+                        FileSystem.PrintLine(fNum, "TEXT 538,203," & """" & "0" & """" & ",180,11,20," & """" & "SIZE:" & """")
+                        FileSystem.PrintLine(fNum, "TEXT 475,206," & """" & "0" & """" & ",180,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 426,207," & """" & "0" & """" & ",180,12,21," & """" & "cm" & """")
+                        FileSystem.PrintLine(fNum, "TEXT 538,150," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :2N" & """")
+
+                        FileSystem.PrintLine(fNum, "QRCODE 182,202,L,4,A,180,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 242,115," & """" & "0" & """" & ",180,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 267,131," & """" & "0" & """" & ",180,10,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 352,131," & """" & "0" & """" & ",180,9,8," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 346,199," & """" & "ROMAN.TTF" & """" & ",180,1,7," & """" & "(Incl.of all Taxes)" & """")
+                        FileSystem.PrintLine(fNum, "TEXT 182,316," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & "(1+1) 2N" & """")
+
+                    Else
+                        FileSystem.PrintLine(fNum, "TEXT 182,288," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 103,288," & """" & "0" & """" & ",180,8,10," & """" & "SLEEVE" & """")
+                        FileSystem.PrintLine(fNum, "TEXT 538,148," & """" & "0" & """" & ",180,11,20," & """" & "SIZE:" & """")
+                        FileSystem.PrintLine(fNum, "TEXT 475,148," & """" & "0" & """" & ",180,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 426,149," & """" & "0" & """" & ",180,12,21," & """" & "cm" & """")
+                        If chkset.Checked = True Then
+                            FileSystem.PrintLine(fNum, "TEXT 538,202," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :2N" & """")
+                        Else
+                            FileSystem.PrintLine(fNum, "TEXT 538,202," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :1N" & """")
+                        End If
+
+                        FileSystem.PrintLine(fNum, "QRCODE 182,202,L,4,A,180,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 242,115," & """" & "0" & """" & ",180,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 267,131," & """" & "0" & """" & ",180,10,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 352,131," & """" & "0" & """" & ",180,9,8," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 346,199," & """" & "ROMAN.TTF" & """" & ",180,1,7," & """" & "(Incl.of all Taxes)" & """")
+                        FileSystem.PrintLine(fNum, "TEXT 182,316," & """" & "0" & """" & ",180,8,9," & """" & Trim(dg.Rows(i).Cells(16).Value) & """")
+                        FileSystem.PrintLine(fNum, "TEXT 538,174," & """" & "0" & """" & ",180,8,9," & """" & Trim(dg.Rows(i).Cells(17).Value) & """")
+                    End If
+                End If
+
+                If chkmfg.Checked = False Then
+                    FileSystem.PrintLine(fNum, "TEXT 464,45," & """" & "0" & """" & ",180,8,7," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 444,23," & """" & "0" & """" & ",180,8,7," & """" & "address details are available in the box" & """")
+                End If
+                If mbarmsg = "Y" Then
+
+                    FileSystem.PrintLine(fNum, "TEXT 543, 136," & """" & "0" & """" & ", 180, 7, 15," & """" & "_________________________________________________________" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 551, 99," & """" & "0" & """" & ", 180, 15, 18," & """" & "|" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 535, 86," & """" & "0" & """" & ", 180, 7, 10," & """" & "Consumer is free to open and inspect the product before buying it" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 543, 89," & """" & "0" & """" & ", 180, 7, 15," & """" & "_________________________________________________________" & """")
+                    FileSystem.PrintLine(fNum, "TEXT 41, 99," & """" & "0" & """" & ", 180, 15, 18," & """" & "|" & """")
+                End If
+
+                If mautoscan = "N" Then
+                    FileSystem.PrintLine(fNum, "PRINT 1," & Val(dg.Rows(i).Cells(14).Value))
+                Else
+                    FileSystem.PrintLine(fNum, "PRINT 1,1")
+                End If
+
+                If mcutenable <> "Y" Then
+                    If mos = "WIN" Then
+                        FileSystem.PrintLine(fNum, "<xpml></page></xpml><xpml><end/></xpml>")
+                    End If
+                Else
+                        FileSystem.PrintLine(fNum, "CUT")
+                End If
+
+
+                'dg.Rows(i).Cells(0).Value = False
+            End If
+        Next
+        FileSystem.FileClose(fNum)
+        If mos = "WIN" Then
+            If mcitrix = "Y" Then
+
+                'citrixprint(mdir)
+                citrixprint2(mdir, cmbprinter.SelectedItem.ToString())
+            Else
+                Shell("rawpr.bat " & mdir)
+                'Shell("""" & System.Windows.Forms.Application.StartupPath & "\rawpr.bat"" """ & mdir & """", AppWinStyle.Hide)
+            End If
+        Else
+            Dim printer As String = tscprinter1
+            Dim filePath As String = mlinpath
+            Dim filePathname As String = mlinpath & "nsbarcodEH.txt"
+            PrintTscRaw(printer, filePathname)
+        End If
+
+    End Sub
 
     Private Sub speedprint2vertboth()
+        Dim dirv, mdirv As String
+
+
+
+        dirv = System.AppDomain.CurrentDomain.BaseDirectory()
+        mdirv = Trim(dirv) & "nsbarcodEV.txt"
+
+
+
+
+        Dim fNum2 As Integer = FileSystem.FreeFile()
+        FileSystem.FileOpen(fNum2, mdirv, OpenMode.Output, OpenAccess.Write, OpenShare.Shared, -1)
+        'FileSystem.PrintLine(fNum, "This is a line with the Rupee symbol: ₹")
+        'FileSystem.FileClose(fNum)
+
+
+
+        'FileOpen(1, mdir, OpenMode.Output)
+        'End If
+        Dim rupeeSymbol As String = ChrW(&H20B9)
+        'Dim rupeeSymbol As String = ChrW(&H20B9)
+
+
+
+        For i As Integer = 0 To dg.Rows.Count - 1
+            Dim c As Boolean
+            c = dg.Rows(i).Cells(0).Value
+            If c = True Then
+                'PrintLine(1, TAB(0), DR.Item("firstdet"))
+                If mcutenable <> "Y" Then
+                    If mos = "WIN" Then
+                        FileSystem.PrintLine(fNum2, "<xpml><page quantity='0' pitch='45.0 mm'></xpml>SIZE 69.10 mm, 45 mm")
+                    Else
+                        FileSystem.PrintLine(fNum2, "SIZE 69.10 mm, 45 mm")
+                    End If
+
+
+
+                    FileSystem.PrintLine(fNum2, "GAP 3 mm,0 mm")
+                        FileSystem.PrintLine(fNum2, "DIRECTION 0,0")
+                        FileSystem.PrintLine(fNum2, "REFERENCE 0,0")
+                        FileSystem.PrintLine(fNum2, "OFFSET 0 mm")
+                        FileSystem.PrintLine(fNum2, "SPEED 7")
+                        FileSystem.PrintLine(fNum2, "SET PEEL OFF")
+                        FileSystem.PrintLine(fNum2, "SET CUTTER OFF")
+                    FileSystem.PrintLine(fNum2, "SET PARTIAL_CUTTER OFF")
+                    If mos = "WIN" Then
+                        FileSystem.PrintLine(fNum2, "<xpml></page></xpml><xpml><page quantity='3' pitch='45.0 mm'></xpml>SET TEAR ON")
+                    Else
+                        FileSystem.PrintLine(fNum2, "SET TEAR ON")
+                    End If
+
+                    FileSystem.PrintLine(fNum2, "CLS")
+                    Else
+                        FileSystem.PrintLine(fNum2, "SIZE 69.10 mm, 45 mm")
+                    FileSystem.PrintLine(fNum2, "GAP 3 mm,0 mm")
+                    FileSystem.PrintLine(fNum2, "DIRECTION 0,0")
+                    FileSystem.PrintLine(fNum2, "REFERENCE 0,0")
+                    FileSystem.PrintLine(fNum2, "OFFSET 0 mm")
+                    FileSystem.PrintLine(fNum2, "SPEED 7")
+                    FileSystem.PrintLine(fNum2, "SET CUTTER ON")
+                    FileSystem.PrintLine(fNum2, "CLS")
+                End If
+
+
+
+                If Chkshirt.Checked = True Then
+                    'FileSystem.PrintLine(fNum2, "<xpml><page quantity='0' pitch='45.0 mm'></xpml>SIZE 69.10 mm, 45 mm")
+                    'FileSystem.PrintLine(fNum2, "GAP 3 mm,0 mm")
+                    'FileSystem.PrintLine(fNum2, "DIRECTION 0,0")
+                    'FileSystem.PrintLine(fNum2, "REFERENCE 0,0")
+                    'FileSystem.PrintLine(fNum2, "OFFSET 0 mm")
+                    'FileSystem.PrintLine(fNum2, "SPEED 7")
+                    'FileSystem.PrintLine(fNum2, "SET PEEL OFF")
+                    'FileSystem.PrintLine(fNum2, "SET CUTTER OFF")
+                    'FileSystem.PrintLine(fNum2, "SET PARTIAL_CUTTER OFF")
+                    'FileSystem.PrintLine(fNum2, "<xpml></page></xpml><xpml><page quantity='3' pitch='45.0 mm'></xpml>SET TEAR ON")
+                    'FileSystem.PrintLine(fNum2, "CLS")
+                    FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,8,11," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+
+                    FileSystem.PrintLine(fNum2, "BITMAP 343,123,5,32,1,ÿÿÿ¿ÿþÿøÿðÿàÿÀÿ€ÿ ŽüŽøŽðŒà‡ŒÀ?€€À  ÿÀ ÿà  ÿð ÿøÿþ ?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿïŸÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+
+                    FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
+                    FileSystem.PrintLine(fNum2, "TEXT 340,15," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
+                    FileSystem.PrintLine(fNum2, TAB(0), "TEXT 380,15," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 380,158," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+
+                    FileSystem.PrintLine(fNum2, "TEXT 512,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 487,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+                    'FileSystem.PrintLine(fNum, "TEXT 300,8," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 485,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 317,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 462,13," & """" & "ROMAN.TTF" & """" & ",90,1,10," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 462,80," & """" & "0" & """" & ",90,9,10," & """" & "SLEEVE" & """")
+                    If chkset.Checked = True Then
+                        FileSystem.PrintLine(fNum2, "TEXT 437,13," & """" & "0" & """" & ",90,7,8," & """" & "Net Qty :2N" & """")
+                    Else
+                        FileSystem.PrintLine(fNum2, "TEXT 437,13," & """" & "0" & """" & ",90,7,8," & """" & "Net Qty : 1 N" & """")
+                    End If
+
+                    FileSystem.PrintLine(fNum2, "TEXT 467,193," & """" & "0" & """" & ",90,11,20," & """" & "Size:" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 467,260," & """" & "0" & """" & ",90,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 469,310," & """" & "0" & """" & ",90,12,21," & """" & "cm" & """")
+
+                    FileSystem.PrintLine(fNum2, "QRCODE 330,251,L,4,A,90,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 320,212," & """" & "0" & """" & ",90,8,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 317,120," & """" & "0" & """" & ",90,10,9," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+
+
+                    ' If Trim(cmbtype.Text) <> "Dealer" And Trim(cmbtype.Text) <> "TN" Then
+                    If typeText <> "Dealer" And typeText <> "TN" Then
+                        FileSystem.PrintLine(fNum2, "TEXT 225,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    Else
+                        FileSystem.PrintLine(fNum2, "TEXT 225,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    End If
+
+                    If chkvertfit.Checked = True Then
+                        'fit
+                        FileSystem.PrintLine(fNum2, "TEXT 410,167," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(16).Value) & """")
+                        'cut
+                        FileSystem.PrintLine(fNum2, "TEXT 410,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(17).Value) & """")
+                    End If
+
+
+
+
+
+                ElseIf chkpant.Checked = True Then
+
+                    'FileSystem.PrintLine(fNum2, "<xpml><page quantity='0' pitch='45.0 mm'></xpml>SIZE 69.10 mm, 45 mm")
+                    'FileSystem.PrintLine(fNum2, "DIRECTION 0,0")
+                    'FileSystem.PrintLine(fNum2, "REFERENCE 0,0")
+                    'FileSystem.PrintLine(fNum2, "OFFSET 0 mm")
+                    'FileSystem.PrintLine(fNum2, "SPEED 7")
+                    'FileSystem.PrintLine(fNum2, "SET PEEL OFF")
+                    'FileSystem.PrintLine(fNum2, "SET CUTTER OFF")
+                    'FileSystem.PrintLine(fNum2, "SET PARTIAL_CUTTER OFF")
+                    'FileSystem.PrintLine(fNum2, "<xpml></page></xpml><xpml><page quantity='3' pitch='45.0 mm'></xpml>SET TEAR ON")
+                    'FileSystem.PrintLine(fNum2, "CLS")
+                    FileSystem.PrintLine(fNum2, "BITMAP 343,123,5,32,1,ÿÿÿ¿ÿþÿøÿðÿàÿÀÿ€ÿ ŽüŽøŽðŒà‡ŒÀ?€€À  ÿÀ ÿà  ÿð ÿøÿþ ?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿïŸÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+
+                    '"₹"
+                    'PrintBitmap()
+                    FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
+                    FileSystem.PrintLine(fNum2, "TEXT 340,15," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
+                    FileSystem.PrintLine(fNum2, TAB(0), "TEXT 380,15," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 380,158," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,8,11," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+                    'TEXT 538,258,"0",180,9,9,"COLOUR :"
+                    FileSystem.PrintLine(fNum2, "TEXT 512,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 487,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 485,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 317,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 462,13," & """" & "ROMAN.TTF" & """" & ",90,1,10," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 462,80," & """" & "0" & """" & ",90,9,10," & """" & "LENGTH" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 467,177," & """" & "0" & """" & ",90,10,20," & """" & "Code :" & """")
+
+
+                    'FileSystem.PrintLine(fNum, "TEXT 183,312," & """" & "0" & """" & ",180,8,9," & """" & "Size: Waist" & """")
+                    'FileSystem.PrintLine(fNum, "TEXT 360,80S," & """" & "0" & """" & ",90,18,12," & """" & Trim(Math.Round(Val(dg.Rows(i).Cells(4).Value) * 2.54, 0)) & """")
+                    'FileSystem.PrintLine(fNum, "TEXT 49,312," & """" & "0" & """" & ",180,8,10," & """" & "cm" & """")
+
+                    FileSystem.PrintLine(fNum2, "TEXT 467,242," & """" & "0" & """" & ",90,16,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 469,294," & """" & "0" & """" & ",90,10,18," & """" & "(Inch)" & """")
+
+                    FileSystem.PrintLine(fNum2, "TEXT 437,13," & """" & "0" & """" & ",90,7,8," & """" & "Net Qty :1N" & """")
+
+
+                    FileSystem.PrintLine(fNum2, "QRCODE 330,251,L,4,A,90,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                    'FileSystem.PrintLine(fNum2, "TEXT 275,122," & """" & "0" & """" & ",90,7,6," & """" & Trim(dg.Rows(i).Cells(7).Value) & """") 'mfg date
+                    FileSystem.PrintLine(fNum2, "TEXT 320,212," & """" & "0" & """" & ",90,8,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 317,120," & """" & "0" & """" & ",90,10,9," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+
+
+
+                    If typeText <> "Dealer" And typeText <> "TN" Then
+                        FileSystem.PrintLine(fNum2, "TEXT 225,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    Else
+                        FileSystem.PrintLine(fNum2, "TEXT 225,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    End If
+
+                    FileSystem.PrintLine(fNum2, "TEXT 410,87," & """" & "0" & """" & ",90,13,10," & """" & Trim(Math.Round(Val(dg.Rows(i).Cells(4).Value) * 2.54, 0)) & "cm" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 410,13," & """" & "0" & """" & ",90,13,10," & """" & "Size:" & """")
+
+
+
+
+                ElseIf chktwin.Checked = True Then
+
+                    FileSystem.PrintLine(fNum2, "BITMAP 343,123,5,32,1,ÿÿÿ¿ÿþÿøÿðÿàÿÀÿ€ÿ ŽüŽøŽðŒà‡ŒÀ?€€À  ÿÀ ÿà  ÿð ÿøÿþ ?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿïŸÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+
+                    '"₹"
+                    'PrintBitmap()
+                    FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
+                    FileSystem.PrintLine(fNum2, "TEXT 340,15," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
+                    FileSystem.PrintLine(fNum2, TAB(0), "TEXT 380,15," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 380,158," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,8,11," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 512,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 487,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 485,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 317,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 452,13," & """" & "ROMAN.TTF" & """" & ",90,1,10," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 452,80," & """" & "0" & """" & ",90,9,10," & """" & "SLEEVE" & """")
+
+                    FileSystem.PrintLine(fNum2, "TEXT 467,193," & """" & "0" & """" & ",90,11,20," & """" & "Size:" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 467,260," & """" & "0" & """" & ",90,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 469,310," & """" & "0" & """" & ",90,12,21," & """" & "cm" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 412,13," & """" & "0" & """" & ",90,7,8," & """" & "Net Qty :2N" & """")
+                    FileSystem.PrintLine(fNum2, "QRCODE 330,251,L,4,A,90,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                    'FileSystem.PrintLine(fNum2, "TEXT 270,122," & """" & "0" & """" & ",90,7,6," & """" & Trim(dg.Rows(i).Cells(7).Value) & """") 'mfg date
+                    FileSystem.PrintLine(fNum2, "TEXT 320,212," & """" & "0" & """" & ",90,8,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 317,120," & """" & "0" & """" & ",90,10,9," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+
+
+                    'If Trim(cmbtype.Text) <> "Dealer" And Trim(cmbtype.Text) <> "TN" Then
+                    If typeText <> "Dealer" And typeText <> "TN" Then
+                        FileSystem.PrintLine(fNum2, "TEXT 225,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    Else
+                        FileSystem.PrintLine(fNum2, "TEXT 225,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    End If
+                    FileSystem.PrintLine(fNum2, "TEXT  512,203," & """" & "ROMAN.TTF" & """" & ",90,11,11," & """" & "(1+1) 2N" & """")
+
+
+
+
+
+
+                Else
+
+
+                End If
+
+
+
+                If chkmfg.Checked = False Then
+                    FileSystem.PrintLine(fNum2, "TEXT 110,13," & """" & "0" & """" & ",90,7,9," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 85,70," & """" & "0" & """" & ",90,8,9," & """" & "address details are available" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 60,75," & """" & "0" & """" & ",90,8,9," & """" & "on the back side of the tag" & """")
+                End If
+
+
+                If mbarmsg = "Y" Then
+
+                    'FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 315, 13," & """" & "0" & """" & ", 90, 5, 9," & """" & "_____________________________________" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 291, 10," & """" & "0" & """" & ", 90, 7, 22," & """" & "|" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 290, 20," & """" & "0" & """" & ", 90, 8, 8," & """" & "Consumer is free to open" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 270, 30," & """" & "0" & """" & ", 90, 8, 8," & """" & "and inspect the product" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 250, 60," & """" & "0" & """" & ", 90, 8, 8," & """" & " before buying it" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 255, 13," & """" & "0" & """" & ", 90, 5, 9," & """" & "_____________________________________" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 291, 231," & """" & "0" & """" & ", 90, 7, 22," & """" & "|" & """")
+
+                End If
+
+                If chkpreprn.Checked = False Then
+                    FileSystem.PrintLine(fNum2, "TEXT 232,5," & """" & "0" & """" & ", 90, 5, 9," & """" & "__________________________________________________________" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 202,55," & """" & "0" & """" & ", 90, 8, 7," & """" & "Manufactured & Marketed by" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 180,30," & """" & "0" & """" & ", 90, 15, 11," & """" & "ENES Textile Mills" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 150,23," & """" & "0" & """" & ", 90, 7, 8, " & """" & "10/3A, Sengunthapuram, Mangalam Road, " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 128,50," & """" & "0" & """" & ", 90, 7, 8, " & """" & "Tirupur - 641 604, Tamilnadu, India." & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 108,85," & """" & "0" & """" & ", 90, 7, 8, " & """" & "Web: www.ramrajcotton.in" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 87, 43, " & """" & "0" & """" & ", 90, 7, 8," & """" & "For Consumer Complaints/Feedback :   " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 66, 28, " & """" & "0" & """" & ", 90, 7, 8," & """" & "Pls Contact Consumer Care Executive at" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 46, 50, " & """" & "0" & """" & ", 90, 7, 8," & """" & "above address, Ph :   0421-4304151," & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 26, 23, " & """" & "0" & """" & ", 90, 7, 8," & """" & "E-Mail : consumercare@ramrajcotton.net" & """")
+                End If
+
+
+
+
+                If mautoscan = "N" Then
+                    FileSystem.PrintLine(fNum2, "PRINT 1," & Val(dg.Rows(i).Cells(14).Value))
+                Else
+                    FileSystem.PrintLine(fNum2, "PRINT 1,1")
+                End If
+
+                If mcutenable <> "Y" Then
+                    If mos = "WIN" Then
+                        FileSystem.PrintLine(fNum2, "<xpml></page></xpml><xpml><end/></xpml>")
+                    End If
+
+                Else
+                        FileSystem.PrintLine(fNum2, "CUT")
+                End If
+
+
+                dg.Rows(i).Cells(0).Value = False
+            End If
+        Next
+        FileSystem.FileClose(fNum2)
+        'FileClose(1)
+
+        If mos = "WIN" Then
+            If mcitrix = "Y" Then
+
+                'citrixprint(mdir)
+                citrixprint2(mdirv, cmbvprinter.SelectedItem.ToString())
+            Else
+                Shell("rawprv.bat " & mdirv)
+            End If
+        Else
+            Dim printer As String = tscprinter2
+            Dim filePath As String = mlinpath
+            Dim filePathname As String = mlinpath & "nsbarcodEV.txt"
+            PrintTscRaw(printer, filePathname)
+
+        End If
+
+        ''PrintTextFile(mdir)
+        ''PrintToTSCPrinter(mdir, Trim(cmbprinter.Text))
+
+
+        'If MsgBox("Print", MsgBoxStyle.YesNo) = MsgBoxResult.Yes Then
+        '    'Shell("print /d:LPT" & Trim(txtport.Text) & mdir, vbNormalFocus)
+        '    ' Call updateprn()
+
+        '    If mcitrix = "Y" Then
+
+        '        'citrixprint(mdir)
+        '        citrixprint2(mdir, cmbprinter.SelectedItem.ToString())
+
+        '    Else
+        '        If MsgBox("Lpt Port", MsgBoxStyle.YesNo) = MsgBoxResult.Yes Then
+
+        '            'Shell("cmd.exe /c" & " type " & mdir & " > lpt" & Trim(txtport.Text) & ":")
+        '            Shell("rawprv.bat " & mdir)
+
+        '        Else
+
+        '            'Dim text As String = File.ReadAllText(mdir)
+        '            Dim text As String = File.ReadAllText(mdir, System.Text.Encoding.GetEncoding(1252))
+        '            Dim pd As PrintDialog = New PrintDialog()
+        '            pd.PrinterSettings = New PrinterSettings()
+        '            If Len(Trim(cmbprinter.Text)) > 0 Then
+        '                BarcodePrint.SendStringToPrinter(pd.PrinterSettings.PrinterName = Trim(cmbprinter.Text), text)
+        '            Else
+        '                BarcodePrint.SendStringToPrinter(pd.PrinterSettings.PrinterName, text)
+        '            End If
+
+        '        End If
+        '    End If
+        'End If
+
+
+    End Sub
+
+
+    Private Sub speedprint2vertbothprevlin()
         Dim dirv, mdirv As String
 
         'dir = System.Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
@@ -4043,35 +4634,35 @@ Public Class Frmmktbarcode
                     'FileSystem.PrintLine(fNum2, "BITMAP 505,133,5,32,1,ÿÿÜÿÿÇÌÿ‡ÌþÌüÌøÌð#ÌàsÈÀñÀð ø ü þ ?ÿŒÿÌÿÿÌÿÿÌÿÿïÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
                     FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,8,11," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
 
-                        FileSystem.PrintLine(fNum2, "BITMAP 317,123,5,32,1,ÿÿÿ¿ÿþÿøÿðÿàÿÀÿ€ÿ ŽüŽøŽðŒà‡ŒÀ?€€À  ÿÀ ÿà  ÿð ÿøÿþ ?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿïŸÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
-                        'PrintLine(1, TAB(0), "TEXT BITMAP 283,312,3,32,1,àÿð?ÿøÿüÿþÿÿÿÿÿÿÀÿÿàÿð?ÿøÿøÿ€þÿüÿø?ÿø?ÿø?ÿ€   ø?ÿøÿ€     ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
-                        'FileSystem.PrintLine(fNum, "BITMAP 88,312,27,32,1,àÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿð?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ€ÿüÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÀþÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿà?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿðÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÀÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿüÿàÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþÿð?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþÿ€ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøþÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿð9üÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿàø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ Cø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ ø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ € ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿý   ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÀø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿàøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ € ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ   ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿü   ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
-                        '"₹"
-                        'PrintBitmap()
-                        FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
-                        FileSystem.PrintLine(fNum2, "TEXT 315,15," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
-                        FileSystem.PrintLine(fNum2, TAB(0), "TEXT 355,15," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 355,158," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
-                        'FileSystem.PrintLine(fNum2, "TEXT 483,13," & """" & "0" & """" & ",90,8,11," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
-                        'TEXT 538,258,"0",180,9,9,"COLOUR :9,10"
-                        FileSystem.PrintLine(fNum2, "TEXT 512,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 480,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
-                        'FileSystem.PrintLine(fNum, "TEXT 300,8," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 475,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 290,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 447,13," & """" & "ROMAN.TTF" & """" & ",90,1,10," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 447,80," & """" & "0" & """" & ",90,9,10," & """" & "SLEEVE" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 417,13," & """" & "0" & """" & ",90,7,7," & """" & "Net Qty : 1 N" & """")
+                    FileSystem.PrintLine(fNum2, "BITMAP 317,123,5,32,1,ÿÿÿ¿ÿþÿøÿðÿàÿÀÿ€ÿ ŽüŽøŽðŒà‡ŒÀ?€€À  ÿÀ ÿà  ÿð ÿøÿþ ?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿïŸÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+                    'PrintLine(1, TAB(0), "TEXT BITMAP 283,312,3,32,1,àÿð?ÿøÿüÿþÿÿÿÿÿÿÀÿÿàÿð?ÿøÿøÿ€þÿüÿø?ÿø?ÿø?ÿ€   ø?ÿøÿ€     ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+                    'FileSystem.PrintLine(fNum, "BITMAP 88,312,27,32,1,àÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿð?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ€ÿüÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÀþÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿà?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿðÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÀÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿüÿàÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþÿð?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþÿ€ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøþÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿð9üÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿàø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ Cø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ ø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ € ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿý   ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÀø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿàøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ € ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ   ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿü   ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+                    '"₹"
+                    'PrintBitmap()
+                    FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
+                    FileSystem.PrintLine(fNum2, "TEXT 315,15," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
+                    FileSystem.PrintLine(fNum2, TAB(0), "TEXT 355,15," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 355,158," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+                    'FileSystem.PrintLine(fNum2, "TEXT 483,13," & """" & "0" & """" & ",90,8,11," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+                    'TEXT 538,258,"0",180,9,9,"COLOUR :9,10"
+                    FileSystem.PrintLine(fNum2, "TEXT 512,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 480,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+                    'FileSystem.PrintLine(fNum, "TEXT 300,8," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 475,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 290,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 447,13," & """" & "ROMAN.TTF" & """" & ",90,1,10," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 447,80," & """" & "0" & """" & ",90,9,10," & """" & "SLEEVE" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 417,13," & """" & "0" & """" & ",90,7,7," & """" & "Net Qty : 1 N" & """")
 
-                        FileSystem.PrintLine(fNum2, "TEXT 417,193," & """" & "0" & """" & ",90,11,20," & """" & "Size:" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 417,260," & """" & "0" & """" & ",90,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 419,310," & """" & "0" & """" & ",90,12,21," & """" & "cm" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 417,193," & """" & "0" & """" & ",90,11,20," & """" & "Size:" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 417,260," & """" & "0" & """" & ",90,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 419,310," & """" & "0" & """" & ",90,12,21," & """" & "cm" & """")
 
                     FileSystem.PrintLine(fNum2, "QRCODE 313,243,L,4,A,90,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
                     'FileSystem.PrintLine(fNum2, "TEXT 295,122," & """" & "0" & """" & ",90,7,6," & """" & Trim(dg.Rows(i).Cells(7).Value) & """")
                     FileSystem.PrintLine(fNum2, "TEXT 293,212," & """" & "0" & """" & ",90,8,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 290,120," & """" & "0" & """" & ",90,10,9," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 290,120," & """" & "0" & """" & ",90,10,9," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
                     'FileSystem.PrintLine(fNum2, "TEXT 505,115," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
 
                     'typeText = Trim(cmbtype.Text)
@@ -4083,38 +4674,38 @@ Public Class Frmmktbarcode
                         FileSystem.PrintLine(fNum2, "TEXT 230,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
                     End If
 
-                        If chkvertfit.Checked = True Then
-                            'fit
-                            FileSystem.PrintLine(fNum2, "TEXT 260,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(16).Value) & """")
-                            'cut
-                            FileSystem.PrintLine(fNum2, "TEXT 385,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(17).Value) & """")
-                        End If
+                    If chkvertfit.Checked = True Then
+                        'fit
+                        FileSystem.PrintLine(fNum2, "TEXT 260,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(16).Value) & """")
+                        'cut
+                        FileSystem.PrintLine(fNum2, "TEXT 385,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(17).Value) & """")
+                    End If
 
 
-                        '***
-                        'FileSystem.PrintLine(fNum, "TEXT  523,281," & """" & "0" & """" & ",180,7,9," & """" & "Commodity Name:" & """")
-                        'FileSystem.PrintLine(fNum, "TEXT 300,8," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    '***
+                    'FileSystem.PrintLine(fNum, "TEXT  523,281," & """" & "0" & """" & ",180,7,9," & """" & "Commodity Name:" & """")
+                    'FileSystem.PrintLine(fNum, "TEXT 300,8," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
 
-                        If chkmfg.Checked = False Then
-                            FileSystem.PrintLine(fNum2, "TEXT 110,13," & """" & "0" & """" & ",90,7,9," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 85,70," & """" & "0" & """" & ",90,8,9," & """" & "address details are available" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 60,75," & """" & "0" & """" & ",90,8,9," & """" & "on the back side of the tag" & """")
-                        End If
+                    If chkmfg.Checked = False Then
+                        FileSystem.PrintLine(fNum2, "TEXT 110,13," & """" & "0" & """" & ",90,7,9," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 85,70," & """" & "0" & """" & ",90,8,9," & """" & "address details are available" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 60,75," & """" & "0" & """" & ",90,8,9," & """" & "on the back side of the tag" & """")
+                    End If
 
 
-                        If mbarmsg = "Y" Then
+                    If mbarmsg = "Y" Then
 
-                            'FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 230, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 208, 10," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 194, 25," & """" & "0" & """" & ", 90, 8, 10," & """" & "Consumer is free to open and inspect" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 169, 60," & """" & "0" & """" & ", 90, 8, 10," & """" & "the product before buying it" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 159, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 208, 339," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+                        'FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 230, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 208, 10," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 194, 25," & """" & "0" & """" & ", 90, 8, 10," & """" & "Consumer is free to open and inspect" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 169, 60," & """" & "0" & """" & ", 90, 8, 10," & """" & "the product before buying it" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 159, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 208, 339," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
 
-                        End If
+                    End If
 
-                    ElseIf chkpant.Checked = True Then
+                ElseIf chkpant.Checked = True Then
 
                     'FileSystem.PrintLine(fNum2, "<xpml><page quantity='0' pitch='45.0 mm'></xpml>SIZE 69.10 mm, 45 mm")
                     'FileSystem.PrintLine(fNum2, "DIRECTION 0,0")
@@ -4132,68 +4723,68 @@ Public Class Frmmktbarcode
 
 
 
-                        FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
-                        FileSystem.PrintLine(fNum2, "TEXT 320,115," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
-                        FileSystem.PrintLine(fNum2, TAB(0), "TEXT 360,13," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 360,156," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
-                        'TEXT 538,258,"0",180,9,9,"COLOUR :"
-                        FileSystem.PrintLine(fNum2, "TEXT 510,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 485,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 480,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 280,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 455,13," & """" & "ROMAN.TTF" & """" & ",90,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 455,85," & """" & "0" & """" & ",90,8,12," & """" & "LENGTH" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 420,13," & """" & "0" & """" & ",90,11,20," & """" & "Code :" & """")
+                    FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
+                    FileSystem.PrintLine(fNum2, "TEXT 320,115," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
+                    FileSystem.PrintLine(fNum2, TAB(0), "TEXT 360,13," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 360,156," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+                    'TEXT 538,258,"0",180,9,9,"COLOUR :"
+                    FileSystem.PrintLine(fNum2, "TEXT 510,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 485,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 480,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 280,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 455,13," & """" & "ROMAN.TTF" & """" & ",90,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 455,85," & """" & "0" & """" & ",90,8,12," & """" & "LENGTH" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 420,13," & """" & "0" & """" & ",90,11,20," & """" & "Code :" & """")
 
 
 
-                        FileSystem.PrintLine(fNum2, "TEXT 418,95," & """" & "0" & """" & ",90,18,20," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 425,150," & """" & "0" & """" & ",90,12,21," & """" & "(Inch)" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 305,13," & """" & "0" & """" & ",90,7,8," & """" & "Net Qty :1N" & """")
-                        FileSystem.PrintLine(fNum2, "QRCODE 306,243,L,4,A,90,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
-                        'FileSystem.PrintLine(fNum2, "TEXT 275,122," & """" & "0" & """" & ",90,7,6," & """" & Trim(dg.Rows(i).Cells(7).Value) & """") 'mfg date
-                        FileSystem.PrintLine(fNum2, "TEXT 300,212," & """" & "0" & """" & ",90,8,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 300,122," & """" & "0" & """" & ",90,10,9," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 418,95," & """" & "0" & """" & ",90,18,20," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 425,150," & """" & "0" & """" & ",90,12,21," & """" & "(Inch)" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 305,13," & """" & "0" & """" & ",90,7,8," & """" & "Net Qty :1N" & """")
+                    FileSystem.PrintLine(fNum2, "QRCODE 306,243,L,4,A,90,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                    'FileSystem.PrintLine(fNum2, "TEXT 275,122," & """" & "0" & """" & ",90,7,6," & """" & Trim(dg.Rows(i).Cells(7).Value) & """") 'mfg date
+                    FileSystem.PrintLine(fNum2, "TEXT 300,212," & """" & "0" & """" & ",90,8,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 300,122," & """" & "0" & """" & ",90,10,9," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
 
 
-                        ' If Trim(cmbtype.Text) <> "Dealer" And Trim(cmbtype.Text) <> "TN" Then
-                        If typeText <> "Dealer" And typeText <> "TN" Then
-                            FileSystem.PrintLine(fNum2, "TEXT 249,13," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
-                        Else
-                            FileSystem.PrintLine(fNum2, "TEXT 249,13," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
-                        End If
+                    ' If Trim(cmbtype.Text) <> "Dealer" And Trim(cmbtype.Text) <> "TN" Then
+                    If typeText <> "Dealer" And typeText <> "TN" Then
+                        FileSystem.PrintLine(fNum2, "TEXT 249,13," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    Else
+                        FileSystem.PrintLine(fNum2, "TEXT 249,13," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    End If
 
-                        FileSystem.PrintLine(fNum2, "TEXT 450,240," & """" & "0" & """" & ",90,12,9," & """" & Trim(Math.Round(Val(dg.Rows(i).Cells(4).Value) * 2.54, 0)) & "cm" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 455,175," & """" & "0" & """" & ",90,11,11," & """" & "Size:" & """")
-
-
-                        If chkmfg.Checked = False Then
-                            FileSystem.PrintLine(fNum2, "TEXT 110,13," & """" & "0" & """" & ",90,7,9," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 85,70," & """" & "0" & """" & ",90,8,9," & """" & "address details are available " & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
-                        End If
+                    FileSystem.PrintLine(fNum2, "TEXT 450,240," & """" & "0" & """" & ",90,12,9," & """" & Trim(Math.Round(Val(dg.Rows(i).Cells(4).Value) * 2.54, 0)) & "cm" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 455,175," & """" & "0" & """" & ",90,11,11," & """" & "Size:" & """")
 
 
-
-                        If mbarmsg = "Y" Then
-
-
-                            ''FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 230, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 208, 10," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 194, 25," & """" & "0" & """" & ", 90, 8, 10," & """" & "Consumer is free to open and inspect" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 169, 60," & """" & "0" & """" & ", 90, 8, 10," & """" & "the product before buying it" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 159, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 208, 339," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
-
-                        End If
+                    If chkmfg.Checked = False Then
+                        FileSystem.PrintLine(fNum2, "TEXT 110,13," & """" & "0" & """" & ",90,7,9," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 85,70," & """" & "0" & """" & ",90,8,9," & """" & "address details are available " & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
+                    End If
 
 
 
+                    If mbarmsg = "Y" Then
 
-                    ElseIf chktwin.Checked = True Then
+
+                        ''FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 230, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 208, 10," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 194, 25," & """" & "0" & """" & ", 90, 8, 10," & """" & "Consumer is free to open and inspect" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 169, 60," & """" & "0" & """" & ", 90, 8, 10," & """" & "the product before buying it" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 159, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 208, 339," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+
+                    End If
+
+
+
+
+                ElseIf chktwin.Checked = True Then
                     'FileSystem.PrintLine(fNum2, "<xpml><page quantity='0' pitch='45.0 mm'></xpml>SIZE 69.10 mm, 45 mm")
                     'FileSystem.PrintLine(fNum2, "DIRECTION 0,0")
                     'FileSystem.PrintLine(fNum2, "REFERENCE 0,0")
@@ -4209,24 +4800,24 @@ Public Class Frmmktbarcode
                     FileSystem.PrintLine(fNum2, "BITMAP 317,123,5,32,1,ÿÿÿ¿ÿþÿøÿðÿàÿÀÿ€ÿ ŽüŽøŽðŒà‡ŒÀ?€€À  ÿÀ ÿà  ÿð ÿøÿþ ?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿïŸÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
 
 
-                        FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
-                        FileSystem.PrintLine(fNum2, "TEXT 315,15," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
-                        FileSystem.PrintLine(fNum2, TAB(0), "TEXT 355,15," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 355,158," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
-                        'TEXT 538,258,"0",180,9,9,"COLOUR :"
-                        FileSystem.PrintLine(fNum2, "TEXT 512,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 480,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 475,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 260,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 397,13," & """" & "ROMAN.TTF" & """" & ",90,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 397,85," & """" & "0" & """" & ",90,9,11," & """" & "SLEEVE" & """")
+                    FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
+                    FileSystem.PrintLine(fNum2, "TEXT 315,15," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
+                    FileSystem.PrintLine(fNum2, TAB(0), "TEXT 355,15," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 355,158," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+                    'TEXT 538,258,"0",180,9,9,"COLOUR :"
+                    FileSystem.PrintLine(fNum2, "TEXT 512,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 480,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 475,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 260,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 397,13," & """" & "ROMAN.TTF" & """" & ",90,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 397,85," & """" & "0" & """" & ",90,9,11," & """" & "SLEEVE" & """")
 
-                        FileSystem.PrintLine(fNum2, "TEXT 455,13," & """" & "0" & """" & ",90,11,20," & """" & "Size:" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 455,73," & """" & "0" & """" & ",90,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 452,123," & """" & "0" & """" & ",90,12,21," & """" & "cm" & """")
-                        FileSystem.PrintLine(fNum2, "TEXT 290,13," & """" & "0" & """" & ",90,7,8," & """" & "Net Qty :2N" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 455,13," & """" & "0" & """" & ",90,11,20," & """" & "Size:" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 455,73," & """" & "0" & """" & ",90,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 452,123," & """" & "0" & """" & ",90,12,21," & """" & "cm" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 290,13," & """" & "0" & """" & ",90,7,8," & """" & "Net Qty :2N" & """")
                     FileSystem.PrintLine(fNum2, "QRCODE 300,243,L,4,A,90,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
                     'FileSystem.PrintLine(fNum2, "TEXT 270,122," & """" & "0" & """" & ",90,7,6," & """" & Trim(dg.Rows(i).Cells(7).Value) & """") 'mfg date
                     FileSystem.PrintLine(fNum2, "TEXT 293,212," & """" & "0" & """" & ",90,8,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
@@ -4235,33 +4826,33 @@ Public Class Frmmktbarcode
 
                     'If Trim(cmbtype.Text) <> "Dealer" And Trim(cmbtype.Text) <> "TN" Then
                     If typeText <> "Dealer" And typeText <> "TN" Then
-                            FileSystem.PrintLine(fNum2, "TEXT 230,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
-                        Else
-                            FileSystem.PrintLine(fNum2, "TEXT 230,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
-                        End If
-                        FileSystem.PrintLine(fNum2, "TEXT  483,220," & """" & "ROMAN.TTF" & """" & ",90,1,11," & """" & "(1+1) 2N" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 230,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    Else
+                        FileSystem.PrintLine(fNum2, "TEXT 230,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    End If
+                    FileSystem.PrintLine(fNum2, "TEXT  483,220," & """" & "ROMAN.TTF" & """" & ",90,1,11," & """" & "(1+1) 2N" & """")
 
 
-                        If chkmfg.Checked = False Then
-                            FileSystem.PrintLine(fNum2, "TEXT 110,13," & """" & "0" & """" & ",90,7,9," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 85,70," & """" & "0" & """" & ",90,8,9," & """" & "address details are available" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
-                        End If
+                    If chkmfg.Checked = False Then
+                        FileSystem.PrintLine(fNum2, "TEXT 110,13," & """" & "0" & """" & ",90,7,9," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 85,70," & """" & "0" & """" & ",90,8,9," & """" & "address details are available" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
+                    End If
 
-                        If mbarmsg = "Y" Then
+                    If mbarmsg = "Y" Then
 
-                            ''FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 230, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 208, 10," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 194, 25," & """" & "0" & """" & ", 90, 8, 10," & """" & "Consumer is free to open and inspect" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 169, 60," & """" & "0" & """" & ", 90, 8, 10," & """" & "the product before buying it" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 159, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
-                            FileSystem.PrintLine(fNum2, "TEXT 208, 339," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+                        ''FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 230, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 208, 10," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 194, 25," & """" & "0" & """" & ", 90, 8, 10," & """" & "Consumer is free to open and inspect" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 169, 60," & """" & "0" & """" & ", 90, 8, 10," & """" & "the product before buying it" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 159, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                        FileSystem.PrintLine(fNum2, "TEXT 208, 339," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
 
-                        End If
+                    End If
 
 
-                    ElseIf chkset.Checked = True Then
+                ElseIf chkset.Checked = True Then
 
                     FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,8,11," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
 
@@ -7115,7 +7706,7 @@ Public Class Frmmktbarcode
     End Sub
 
 
-    Private Sub speedprint2vertbothNew()
+    Private Sub speedprint2vertbothNewprevlin()
         Dim dirv, mdirv As String
 
         'dir = System.Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
@@ -7535,7 +8126,355 @@ Public Class Frmmktbarcode
 
 
     End Sub
+    Private Sub speedprint2vertbothNew()
+        Dim dirv, mdirv As String
 
+
+        dirv = System.AppDomain.CurrentDomain.BaseDirectory()
+        mdirv = Trim(dirv) & "nsbarcodEVH.txt"
+
+
+        Dim fNum2 As Integer = FileSystem.FreeFile()
+        FileSystem.FileOpen(fNum2, mdirv, OpenMode.Output, OpenAccess.Write, OpenShare.Shared, -1)
+        'FileSystem.PrintLine(fNum, "This is a line with the Rupee symbol: ₹")
+        'FileSystem.FileClose(fNum)
+
+
+
+        'FileOpen(1, mdir, OpenMode.Output)
+        'End If
+        Dim rupeeSymbol As String = ChrW(&H20B9)
+        'Dim rupeeSymbol As String = ChrW(&H20B9)
+
+
+
+        For i As Integer = 0 To dg.Rows.Count - 1
+            Dim c As Boolean
+            c = dg.Rows(i).Cells(0).Value
+            If c = True Then
+                'PrintLine(1, TAB(0), DR.Item("firstdet"))
+
+
+                'If mos = "WIN" Then
+                '    'FileSystem.PrintLine(fNum2, "<xpml></page></xpml><xpml><page quantity='3' pitch='45.0 mm'></xpml>")
+                'End If
+
+                'If mcutenable <> "Y" Then
+                '    If mos = "WIN" Then
+                '        FileSystem.PrintLine(fNum2, "<xpml><page quantity='0' pitch='45.0 mm'></xpml>")
+                '    End If
+
+                '    FileSystem.PrintLine(fNum2, "SIZE 69.10 mm, 45 mm")
+                '        FileSystem.PrintLine(fNum2, "GAP 45 mm,0")
+                '        FileSystem.PrintLine(fNum2, "DIRECTION 0,0")
+                '        FileSystem.PrintLine(fNum2, "REFERENCE 0,0")
+                '        FileSystem.PrintLine(fNum2, "OFFSET 0 mm")
+                '        FileSystem.PrintLine(fNum2, "SPEED 7")
+                '        FileSystem.PrintLine(fNum2, "SET PEEL OFF")
+                '        FileSystem.PrintLine(fNum2, "SET CUTTER OFF")
+                '        FileSystem.PrintLine(fNum2, "SET TEAR ON")
+                '        FileSystem.PrintLine(fNum2, "CLS")
+                '    Else
+                '        FileSystem.PrintLine(fNum2, "SIZE 69.10 mm, 45 mm")
+                '    FileSystem.PrintLine(fNum2, "GAP 3 mm,0 mm")
+                '    FileSystem.PrintLine(fNum2, "DIRECTION 0,0")
+                '    FileSystem.PrintLine(fNum2, "REFERENCE 0,0")
+                '    FileSystem.PrintLine(fNum2, "OFFSET 0 mm")
+                '    FileSystem.PrintLine(fNum2, "SPEED 7")
+                '    FileSystem.PrintLine(fNum2, "SET CUTTER ON")
+                '    FileSystem.PrintLine(fNum2, "CLS")
+                'End If
+
+
+
+                If mcutenable <> "Y" Then
+                    If mos = "WIN" Then
+                        FileSystem.PrintLine(fNum2, "<xpml><page quantity='0' pitch='45.0 mm'></xpml>SIZE 69.10 mm, 45 mm")
+                    Else
+                        FileSystem.PrintLine(fNum2, "SIZE 69.10 mm, 45 mm")
+                    End If
+
+
+
+                    FileSystem.PrintLine(fNum2, "GAP 3 mm,0 mm")
+                    FileSystem.PrintLine(fNum2, "DIRECTION 0,0")
+                    FileSystem.PrintLine(fNum2, "REFERENCE 0,0")
+                    FileSystem.PrintLine(fNum2, "OFFSET 0 mm")
+                    FileSystem.PrintLine(fNum2, "SPEED 7")
+                    FileSystem.PrintLine(fNum2, "SET PEEL OFF")
+                    FileSystem.PrintLine(fNum2, "SET CUTTER OFF")
+                    FileSystem.PrintLine(fNum2, "SET PARTIAL_CUTTER OFF")
+                    If mos = "WIN" Then
+                        FileSystem.PrintLine(fNum2, "<xpml></page></xpml><xpml><page quantity='3' pitch='45.0 mm'></xpml>SET TEAR ON")
+                    Else
+                        FileSystem.PrintLine(fNum2, "SET TEAR ON")
+                    End If
+
+                    FileSystem.PrintLine(fNum2, "CLS")
+                Else
+                    FileSystem.PrintLine(fNum2, "SIZE 69.10 mm, 45 mm")
+                    FileSystem.PrintLine(fNum2, "GAP 3 mm,0 mm")
+                    FileSystem.PrintLine(fNum2, "DIRECTION 0,0")
+                    FileSystem.PrintLine(fNum2, "REFERENCE 0,0")
+                    FileSystem.PrintLine(fNum2, "OFFSET 0 mm")
+                    FileSystem.PrintLine(fNum2, "SPEED 7")
+                    FileSystem.PrintLine(fNum2, "SET CUTTER ON")
+                    FileSystem.PrintLine(fNum2, "CLS")
+                End If
+
+                If Chkshirt.Checked = True Then
+
+                    FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,8,11," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+
+                    FileSystem.PrintLine(fNum2, "BITMAP 343,123,5,32,1,ÿÿÿ¿ÿþÿøÿðÿàÿÀÿ€ÿ ŽüŽøŽðŒà‡ŒÀ?€€À  ÿÀ ÿà  ÿð ÿøÿþ ?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿïŸÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+
+                    FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
+                    FileSystem.PrintLine(fNum2, "TEXT 340,15," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
+                    FileSystem.PrintLine(fNum2, TAB(0), "TEXT 380,15," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 380,158," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+
+                    FileSystem.PrintLine(fNum2, "TEXT 512,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 487,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+                    'FileSystem.PrintLine(fNum, "TEXT 300,8," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 485,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 317,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 462,13," & """" & "ROMAN.TTF" & """" & ",90,1,10," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 462,80," & """" & "0" & """" & ",90,9,10," & """" & "SLEEVE" & """")
+                    If chkset.Checked = True Then
+                        FileSystem.PrintLine(fNum2, "TEXT 437,13," & """" & "0" & """" & ",90,7,8," & """" & "Net Qty :2N" & """")
+                    Else
+                        FileSystem.PrintLine(fNum2, "TEXT 437,13," & """" & "0" & """" & ",90,7,8," & """" & "Net Qty : 1 N" & """")
+                    End If
+
+                    FileSystem.PrintLine(fNum2, "TEXT 467,193," & """" & "0" & """" & ",90,11,20," & """" & "Size:" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 467,260," & """" & "0" & """" & ",90,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 469,310," & """" & "0" & """" & ",90,12,21," & """" & "cm" & """")
+
+                    FileSystem.PrintLine(fNum2, "QRCODE 330,251,L,4,A,90,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 320,212," & """" & "0" & """" & ",90,8,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 317,120," & """" & "0" & """" & ",90,10,9," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+
+
+                    ' If Trim(cmbtype.Text) <> "Dealer" And Trim(cmbtype.Text) <> "TN" Then
+                    If typeText <> "Dealer" And typeText <> "TN" Then
+                        FileSystem.PrintLine(fNum2, "TEXT 225,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    Else
+                        FileSystem.PrintLine(fNum2, "TEXT 225,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    End If
+
+                    If chkvertfit.Checked = True Then
+                        'fit
+                        FileSystem.PrintLine(fNum2, "TEXT 410,167," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(16).Value) & """")
+                        'cut
+                        FileSystem.PrintLine(fNum2, "TEXT 410,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(17).Value) & """")
+                    End If
+
+
+
+
+
+                ElseIf chkpant.Checked = True Then
+
+                    FileSystem.PrintLine(fNum2, "BITMAP 343,123,5,32,1,ÿÿÿ¿ÿþÿøÿðÿàÿÀÿ€ÿ ŽüŽøŽðŒà‡ŒÀ?€€À  ÿÀ ÿà  ÿð ÿøÿþ ?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿïŸÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+
+                    '"₹"
+                    'PrintBitmap()
+                    FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
+                    FileSystem.PrintLine(fNum2, "TEXT 340,15," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
+                    FileSystem.PrintLine(fNum2, TAB(0), "TEXT 380,15," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 380,158," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,8,11," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+                    'TEXT 538,258,"0",180,9,9,"COLOUR :"
+                    FileSystem.PrintLine(fNum2, "TEXT 512,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 487,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 485,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 317,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 462,13," & """" & "ROMAN.TTF" & """" & ",90,1,10," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 462,80," & """" & "0" & """" & ",90,9,10," & """" & "LENGTH" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 467,177," & """" & "0" & """" & ",90,10,20," & """" & "Code :" & """")
+
+
+                    'FileSystem.PrintLine(fNum, "TEXT 183,312," & """" & "0" & """" & ",180,8,9," & """" & "Size: Waist" & """")
+                    'FileSystem.PrintLine(fNum, "TEXT 360,80S," & """" & "0" & """" & ",90,18,12," & """" & Trim(Math.Round(Val(dg.Rows(i).Cells(4).Value) * 2.54, 0)) & """")
+                    'FileSystem.PrintLine(fNum, "TEXT 49,312," & """" & "0" & """" & ",180,8,10," & """" & "cm" & """")
+
+                    FileSystem.PrintLine(fNum2, "TEXT 467,242," & """" & "0" & """" & ",90,16,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 469,294," & """" & "0" & """" & ",90,10,18," & """" & "(Inch)" & """")
+
+                    FileSystem.PrintLine(fNum2, "TEXT 437,13," & """" & "0" & """" & ",90,7,8," & """" & "Net Qty :1N" & """")
+
+
+                    FileSystem.PrintLine(fNum2, "QRCODE 330,251,L,4,A,90,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                    'FileSystem.PrintLine(fNum2, "TEXT 275,122," & """" & "0" & """" & ",90,7,6," & """" & Trim(dg.Rows(i).Cells(7).Value) & """") 'mfg date
+                    FileSystem.PrintLine(fNum2, "TEXT 320,212," & """" & "0" & """" & ",90,8,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 317,120," & """" & "0" & """" & ",90,10,9," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+
+
+
+                    If typeText <> "Dealer" And typeText <> "TN" Then
+                        FileSystem.PrintLine(fNum2, "TEXT 225,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    Else
+                        FileSystem.PrintLine(fNum2, "TEXT 225,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    End If
+
+                    FileSystem.PrintLine(fNum2, "TEXT 410,87," & """" & "0" & """" & ",90,13,10," & """" & Trim(Math.Round(Val(dg.Rows(i).Cells(4).Value) * 2.54, 0)) & "cm" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 410,13," & """" & "0" & """" & ",90,13,10," & """" & "Size:" & """")
+
+
+
+
+                ElseIf chktwin.Checked = True Then
+
+                    FileSystem.PrintLine(fNum2, "BITMAP 343,123,5,32,1,ÿÿÿ¿ÿþÿøÿðÿàÿÀÿ€ÿ ŽüŽøŽðŒà‡ŒÀ?€€À  ÿÀ ÿà  ÿð ÿøÿþ ?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿïŸÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+
+                    '"₹"
+                    'PrintBitmap()
+                    FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
+                    FileSystem.PrintLine(fNum2, "TEXT 340,15," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
+                    FileSystem.PrintLine(fNum2, TAB(0), "TEXT 380,15," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 380,158," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,8,11," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 512,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 487,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 485,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 317,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 452,13," & """" & "ROMAN.TTF" & """" & ",90,1,10," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 452,80," & """" & "0" & """" & ",90,9,10," & """" & "SLEEVE" & """")
+
+                    FileSystem.PrintLine(fNum2, "TEXT 467,193," & """" & "0" & """" & ",90,11,20," & """" & "Size:" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 467,260," & """" & "0" & """" & ",90,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 469,310," & """" & "0" & """" & ",90,12,21," & """" & "cm" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 412,13," & """" & "0" & """" & ",90,7,8," & """" & "Net Qty :2N" & """")
+                    FileSystem.PrintLine(fNum2, "QRCODE 330,251,L,4,A,90,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                    'FileSystem.PrintLine(fNum2, "TEXT 270,122," & """" & "0" & """" & ",90,7,6," & """" & Trim(dg.Rows(i).Cells(7).Value) & """") 'mfg date
+                    FileSystem.PrintLine(fNum2, "TEXT 320,212," & """" & "0" & """" & ",90,8,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 317,120," & """" & "0" & """" & ",90,10,9," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+
+
+                    'If Trim(cmbtype.Text) <> "Dealer" And Trim(cmbtype.Text) <> "TN" Then
+                    If typeText <> "Dealer" And typeText <> "TN" Then
+                        FileSystem.PrintLine(fNum2, "TEXT 225,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    Else
+                        FileSystem.PrintLine(fNum2, "TEXT 225,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    End If
+                    FileSystem.PrintLine(fNum2, "TEXT  512,203," & """" & "ROMAN.TTF" & """" & ",90,11,11," & """" & "(1+1) 2N" & """")
+
+
+
+
+
+
+                Else
+
+
+                End If
+
+
+
+                If chkmfg.Checked = False Then
+                    FileSystem.PrintLine(fNum2, "TEXT 110,13," & """" & "0" & """" & ",90,7,9," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 85,70," & """" & "0" & """" & ",90,8,9," & """" & "address details are available" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 60,75," & """" & "0" & """" & ",90,8,9," & """" & "on the back side of the tag" & """")
+                End If
+
+
+                If mbarmsg = "Y" Then
+
+                    'FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 315, 13," & """" & "0" & """" & ", 90, 5, 9," & """" & "_____________________________________" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 291, 10," & """" & "0" & """" & ", 90, 7, 22," & """" & "|" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 290, 20," & """" & "0" & """" & ", 90, 8, 8," & """" & "Consumer is free to open" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 270, 30," & """" & "0" & """" & ", 90, 8, 8," & """" & "and inspect the product" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 250, 60," & """" & "0" & """" & ", 90, 8, 8," & """" & " before buying it" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 255, 13," & """" & "0" & """" & ", 90, 5, 9," & """" & "_____________________________________" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 291, 231," & """" & "0" & """" & ", 90, 7, 22," & """" & "|" & """")
+
+                End If
+
+                If chkpreprn.Checked = False Then
+                    FileSystem.PrintLine(fNum2, "TEXT 232,5," & """" & "0" & """" & ", 90, 5, 9," & """" & "__________________________________________________________" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 202,55," & """" & "0" & """" & ", 90, 8, 7," & """" & "Manufactured & Marketed by" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 180,30," & """" & "0" & """" & ", 90, 15, 11," & """" & "ENES Textile Mills" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 150,23," & """" & "0" & """" & ", 90, 7, 8, " & """" & "10/3A, Sengunthapuram, Mangalam Road, " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 128,50," & """" & "0" & """" & ", 90, 7, 8, " & """" & "Tirupur - 641 604, Tamilnadu, India." & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 108,85," & """" & "0" & """" & ", 90, 7, 8, " & """" & "Web: www.ramrajcotton.in" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 87, 43, " & """" & "0" & """" & ", 90, 7, 8," & """" & "For Consumer Complaints/Feedback :   " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 66, 28, " & """" & "0" & """" & ", 90, 7, 8," & """" & "Pls Contact Consumer Care Executive at" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 46, 50, " & """" & "0" & """" & ", 90, 7, 8," & """" & "above address, Ph :   0421-4304151," & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 26, 23, " & """" & "0" & """" & ", 90, 7, 8," & """" & "E-Mail : consumercare@ramrajcotton.net" & """")
+                End If
+
+
+                FileSystem.PrintLine(fNum2, "PRINT 1,1")
+                If mcutenable = "Y" Then
+                    FileSystem.PrintLine(fNum2, "CUT")
+                End If
+
+                If mos = "WIN" Then
+                    FileSystem.PrintLine(fNum2, "<xpml></page></xpml><xpml><end/></xpml>")
+                End If
+
+                If Trim(cmbtype.Text) <> "Showroom" And Trim(cmbtype.Text) <> "Franchise" Then
+
+                    speedprinthbothNew(fNum2, dg, i)
+                Else
+                    If Chkbox.Checked = True Then
+                        speedprinthbothNew(fNum2, dg, i)
+                    End If
+
+                End If
+
+                dg.Rows(i).Cells(0).Value = False
+            End If
+        Next
+        FileSystem.FileClose(fNum2)
+        'FileClose(1)
+
+        If mos = "WIN" Then
+            If mcitrix = "Y" Then
+
+                'citrixprint(mdir)
+                citrixprint2(mdirv, cmbvprinter.SelectedItem.ToString())
+            Else
+                ' If MsgBox("Lpt port", vbYesNo) = vbYes Then
+                Shell("rawprv.bat " & mdirv)
+                'Else
+                'Dim text As String = File.ReadAllText(mdirv, System.Text.Encoding.GetEncoding(1252))
+                'Dim pd As PrintDialog = New PrintDialog()
+                'pd.PrinterSettings = New PrinterSettings()
+                'If Len(Trim(cmbprinter.Text)) > 0 Then
+                '    'MsgBox(cmbprinter.Text)
+                '    'BarcodePrint.SendStringToPrinter(pd.PrinterSettings.PrinterName = Trim(cmbprinter.Text), text)
+                '    'RawPrinterHelper.SendStringToPrinter(pd.PrinterSettings.PrinterName = Trim(cmbprinter.Text), text)
+                '    Dim ok = CitizenRawPrinter.PrintTSPL("Citizen CL-E321", mdirv)
+
+                'Else
+                '    'BarcodePrint.SendStringToPrinter(pd.PrinterSettings.PrinterName, text)
+                '    Dim ok = CitizenRawPrinter.PrintTSPL("Citizen CL-E321", mdirv)
+                'End If
+                'End If
+
+            End If
+
+        Else
+
+            Dim printer As String = tscprinter2
+            Dim filePath As String = mlinpath
+            Dim filePathname As String = mlinpath & "nsbarcodEVH.txt"
+            PrintTscRaw(printer, filePathname)
+            'PrintTscRaw("/dev/usb/lp0", "/home/user/label.txt")
+
+
+        End If
+
+
+
+
+
+    End Sub
 
 
 
@@ -7543,117 +8482,138 @@ Public Class Frmmktbarcode
 
     Private Sub speedprinthbothNew(fnum As Integer, dg As DataGridView, i As Integer)
 
-        If mos = "WIN" Then
-            FileSystem.PrintLine(fnum, "<xpml><page quantity='0' pitch='45.0 mm'></xpml>")
-            FileSystem.PrintLine(fnum, "SIZE 69.10 mm, 45 mm")
-        Else
-            FileSystem.PrintLine(fnum, "SIZE 69.10 mm,43 mm")
-            FileSystem.PrintLine(fnum, "GAP 45 mm,0")
+        If mcutenable <> "Y" Then
+            If mos = "WIN" Then
+                FileSystem.PrintLine(fnum, "<xpml><page quantity='0' pitch='45.0 mm'></xpml>SIZE 69.10 mm, 45 mm")
+            Else
+                FileSystem.PrintLine(fnum, "SIZE 69.10 mm, 45 mm")
+            End If
+
+            FileSystem.PrintLine(fnum, "DIRECTION 0,0")
+                FileSystem.PrintLine(fnum, "REFERENCE 0,0")
+                FileSystem.PrintLine(fnum, "OFFSET 0 mm")
+                FileSystem.PrintLine(fnum, "SPEED 7")
+                FileSystem.PrintLine(fnum, "SET PEEL OFF")
+                FileSystem.PrintLine(fnum, "SET CUTTER OFF")
+            FileSystem.PrintLine(fnum, "SET PARTIAL_CUTTER OFF")
+            If mos = "WIN" Then
+                FileSystem.PrintLine(fnum, "<xpml></page></xpml><xpml><page quantity='3' pitch='45.0 mm'></xpml>SET TEAR ON")
+            Else
+                FileSystem.PrintLine(fnum, "SET TEAR ON")
+            End If
+
+            FileSystem.PrintLine(fnum, "CLS")
+            Else
+                FileSystem.PrintLine(fnum, "SIZE 69.10 mm, 45 mm")
+            FileSystem.PrintLine(fnum, "GAP 3 mm,0 mm")
+            FileSystem.PrintLine(fnum, "DIRECTION 0,0")
+            FileSystem.PrintLine(fnum, "REFERENCE 0,0")
+            FileSystem.PrintLine(fnum, "OFFSET 0 mm")
+            FileSystem.PrintLine(fnum, "SPEED 7")
+            FileSystem.PrintLine(fnum, "SET CUTTER ON")
+            FileSystem.PrintLine(fnum, "CLS")
         End If
 
-        FileSystem.PrintLine(fnum, "DIRECTION 0,0")
-        FileSystem.PrintLine(fnum, "REFERENCE 0,0")
-        FileSystem.PrintLine(fnum, "OFFSET 0 mm")
-        FileSystem.PrintLine(fnum, "SPEED 7")
-        FileSystem.PrintLine(fnum, "SET PEEL OFF")
-        FileSystem.PrintLine(fnum, "SET CUTTER OFF")
-        FileSystem.PrintLine(fnum, "SET PARTIAL_CUTTER OFF")
-        If mos = "WIN" Then
-            FileSystem.PrintLine(fnum, "<xpml></page></xpml><xpml><page quantity='3' pitch='45.0 mm'></xpml>")
-        End if
-                 FileSystem.PrintLine(fnum, "Set TEAR On")
-                FileSystem.PrintLine(fNum, "CLS")
-               
-                FileSystem.PrintLine(1, TAB(0), "BITMAP 388, 213, 4, 40, 1, øÿÿü ÿÿþÿÿÿÿÿÿÿÿÿ€ÿÿÿÀÿÿà?ÿÿðÿÿøÿÿüÿÿü ÿÿþÿÿÿÿÿÿ€ÿÿÿÀÿÿàÿÿà?ÿÿ€?ÿü ?ÿð ?ÿà?ÿÿÀÿÿÿÿÿÿÿÿÿ ÿÿþ ÿÿþÿÿÀ  €  ?€  ?   þÿÿÿÿÿÿ ÿÿÿ€ÿÀ  €  ?   ?ÿÿÿÿ")
 
-             
-                FileSystem.PrintLine(fNum, TAB(0), "CODEPAGE 1252")
-                FileSystem.PrintLine(fNum, TAB(0), "TEXT 538, 253, " & """" & "0" & """" & ", 180, 20, 18, " & """" & "MRP" & """")
-                FileSystem.PrintLine(fNum, "TEXT 382, 253, " & """" & "0" & """" & ", 180, 20, 18, " & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
-                FileSystem.PrintLine(fNum, "TEXT 538, 345, " & """" & "0" & """" & ", 180, 11, 12, " & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
-                FileSystem.PrintLine(fNum, "TEXT 538, 311, " & """" & "0" & """" & ", 180, 9, 9," & """" & "COLOUR :" & """")
-                FileSystem.PrintLine(fNum, "TEXT 538,283," & """" & "0" & """" & ",180,8,9," & """" & "COMMODITY " & """")              
-                FileSystem.PrintLine(fNum, "TEXT 439,311," & """" & "ROMAN.TTF" & """" & ",180,1,9," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
-                FileSystem.PrintLine(fNum, "TEXT 410,283," & """" & "0" & """" & ",180,9,9," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
-                FileSystem.PrintLine(fNum, "TEXT 367,169," & """" & "0" & """" & ",180,10,8," & """" & "Made in India" & """")
+        FileSystem.PrintLine(1, TAB(0), "BITMAP 388,213,4,40,1,øÿÿü ÿÿþÿÿÿÿÿÿÿÿÿ€ÿÿÿÀÿÿà?ÿÿðÿÿøÿÿüÿÿü ÿÿþÿÿÿÿÿÿ€ÿÿÿÀÿÿàÿÿà?ÿÿ€?ÿü ?ÿð ?ÿà?ÿÿÀÿÿÿÿÿÿÿÿÿ ÿÿþ ÿÿþÿÿÀ  €  ?€  ?   þÿÿÿÿÿÿ ÿÿÿ€ÿÀ  €  ?   ?ÿÿÿÿ")
 
-                If chkpant.Checked = True Or dg.Rows(i).Cells(15).Value.ToString.Trim.Length > 0 Then
-                    FileSystem.PrintLine(fNum, "TEXT 182,278," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
-                    FileSystem.PrintLine(fNum, "TEXT 109,275," & """" & "0" & """" & ",180,11,10," & """" & "Length" & """")
-                    FileSystem.PrintLine(fNum, "TEXT 538,201," & """" & "0" & """" & ",180,9,17," & """" & "Code" & """")
-                    FileSystem.PrintLine(fNum, "TEXT 475,206," & """" & "0" & """" & ",180,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
-                    FileSystem.PrintLine(fNum, "TEXT 419,188," & """" & "0" & """" & ",180,7,10," & """" & "(Inch)" & """")
-                    FileSystem.PrintLine(fNum, "TEXT 538,150," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty 1N" & """")
-                    FileSystem.PrintLine(fNum, "QRCODE 182,202,L,4,A,180,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+        '"₹"
+        'PrintBitmap()
+        FileSystem.PrintLine(fnum, TAB(0), "CODEPAGE 1252")
+        FileSystem.PrintLine(fnum, TAB(0), "TEXT 538,253," & """" & "0" & """" & ",180,20,18," & """" & "MRP" & """")
+        FileSystem.PrintLine(fnum, "TEXT 382,253," & """" & "0" & """" & ",180,20,18," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+        FileSystem.PrintLine(fnum, "TEXT 538,345," & """" & "0" & """" & ",180,11,12," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+        FileSystem.PrintLine(fnum, "TEXT 538,311," & """" & "0" & """" & ",180,9,9," & """" & "COLOUR :" & """")
+        FileSystem.PrintLine(fnum, "TEXT 538,283," & """" & "0" & """" & ",180,8,9," & """" & "COMMODITY :" & """")
+        FileSystem.PrintLine(fnum, "TEXT 439,311," & """" & "ROMAN.TTF" & """" & ",180,1,9," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+        FileSystem.PrintLine(fnum, "TEXT 410,283," & """" & "0" & """" & ",180,9,9," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+        FileSystem.PrintLine(fnum, "TEXT 367,169," & """" & "0" & """" & ",180,10,8," & """" & "Made in India" & """")
+
+
+
+
+
+        If chkpant.Checked = True Or dg.Rows(i).Cells(15).Value.ToString.Trim.Length > 0 Then
+            FileSystem.PrintLine(fnum, "TEXT 182,278," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+            FileSystem.PrintLine(fnum, "TEXT 109,275," & """" & "0" & """" & ",180,11,10," & """" & "Length" & """")
+            FileSystem.PrintLine(fnum, "TEXT 538,201," & """" & "0" & """" & ",180,9,17," & """" & "Code:" & """")
+            FileSystem.PrintLine(fnum, "TEXT 475,206," & """" & "0" & """" & ",180,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+            FileSystem.PrintLine(fnum, "TEXT 419,188," & """" & "0" & """" & ",180,7,10," & """" & "(Inch)" & """")
+            FileSystem.PrintLine(fnum, "TEXT 538,150," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :1N" & """")
+            FileSystem.PrintLine(fnum, "QRCODE 182,202,L,4,A,180,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
             FileSystem.PrintLine(fnum, "TEXT 242,115," & """" & "0" & """" & ",180,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
-            FileSystem.PrintLine(fNum, "TEXT 267,131," & """" & "0" & """" & ",180,10,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
-                    FileSystem.PrintLine(fNum, "TEXT 352,131," & """" & "0" & """" & ",180,9,8," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
-                    FileSystem.PrintLine(fNum, "TEXT 346,199," & """" & "ROMAN.TTF" & """" & ",180,1,7," & """" & "(Incl.of all Taxes)" & """")
-                    FileSystem.PrintLine(fNum, "TEXT 120,307," & """" & "0" & """" & ",180,12,9," & """" & (Trim(dg.Rows(i).Cells(15).Value) & " cm") & """")
-                    FileSystem.PrintLine(fNum, "TEXT 182,311," & """" & "0" & """" & ",180,11,11," & """" & "Size" & """")
+            FileSystem.PrintLine(fnum, "TEXT 267,131," & """" & "0" & """" & ",180,10,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+            FileSystem.PrintLine(fnum, "TEXT 352,131," & """" & "0" & """" & ",180,9,8," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+            FileSystem.PrintLine(fnum, "TEXT 346,199," & """" & "ROMAN.TTF" & """" & ",180,1,7," & """" & "(Incl.of all Taxes)" & """")
+            FileSystem.PrintLine(fnum, "TEXT 120,307," & """" & "0" & """" & ",180,12,9," & """" & (Trim(dg.Rows(i).Cells(15).Value) & " cm") & """")
+            FileSystem.PrintLine(fnum, "TEXT 182,311," & """" & "0" & """" & ",180,11,11," & """" & "Size:" & """")
 
+        Else
+            If chktwin.Checked = True Then
+                FileSystem.PrintLine(fnum, "TEXT 182,283," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                FileSystem.PrintLine(fnum, "TEXT 103,280," & """" & "0" & """" & ",180,8,10," & """" & "SLEEVE" & """")
+                FileSystem.PrintLine(fnum, "TEXT 538,203," & """" & "0" & """" & ",180,11,20," & """" & "SIZE:" & """")
+                FileSystem.PrintLine(fnum, "TEXT 475,206," & """" & "0" & """" & ",180,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                FileSystem.PrintLine(fnum, "TEXT 426,207," & """" & "0" & """" & ",180,12,21," & """" & "cm" & """")
+                FileSystem.PrintLine(fnum, "TEXT 538,150," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :2N" & """")
+
+                FileSystem.PrintLine(fnum, "QRCODE 182,202,L,4,A,180,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                FileSystem.PrintLine(fnum, "TEXT 242,115," & """" & "0" & """" & ",180,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                FileSystem.PrintLine(fnum, "TEXT 267,131," & """" & "0" & """" & ",180,10,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                FileSystem.PrintLine(fnum, "TEXT 352,131," & """" & "0" & """" & ",180,9,8," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+                FileSystem.PrintLine(fnum, "TEXT 346,199," & """" & "ROMAN.TTF" & """" & ",180,1,7," & """" & "(Incl.of all Taxes)" & """")
+                FileSystem.PrintLine(fnum, "TEXT 182,316," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & "(1+1) 2N" & """")
+
+            Else
+                FileSystem.PrintLine(fnum, "TEXT 182,288," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                FileSystem.PrintLine(fnum, "TEXT 103,288," & """" & "0" & """" & ",180,8,10," & """" & "SLEEVE" & """")
+                FileSystem.PrintLine(fnum, "TEXT 538,148," & """" & "0" & """" & ",180,11,20," & """" & "SIZE:" & """")
+                FileSystem.PrintLine(fnum, "TEXT 475,148," & """" & "0" & """" & ",180,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                FileSystem.PrintLine(fnum, "TEXT 426,149," & """" & "0" & """" & ",180,12,21," & """" & "cm" & """")
+                If chkset.Checked = True Then
+                    FileSystem.PrintLine(fnum, "TEXT 538,202," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :2N" & """")
                 Else
-                    If chktwin.Checked = True Then
-                        FileSystem.PrintLine(fNum, "TEXT 182,283," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
-                        FileSystem.PrintLine(fNum, "TEXT 103,280," & """" & "0" & """" & ",180,8,10," & """" & "SLEEVE" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 538,203," & """" & "0" & """" & ",180,11,20," & """" & "SIZE" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 475,206," & """" & "0" & """" & ",180,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
-                        FileSystem.PrintLine(fNum, "TEXT 426,207," & """" & "0" & """" & ",180,12,21," & """" & "cm" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 538,150," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty 2N" & """")
-                FileSystem.PrintLine(fnum, "QRCODE 182,202,L,4,A,180,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
-                FileSystem.PrintLine(fnum, "TEXT 242,115," & """" & "0" & """" & ",180,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
-                FileSystem.PrintLine(fNum, "TEXT 267,131," & """" & "0" & """" & ",180,10,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
-                        FileSystem.PrintLine(fNum, "TEXT 352,131," & """" & "0" & """" & ",180,9,8," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
-                        FileSystem.PrintLine(fNum, "TEXT 346,199," & """" & "ROMAN.TTF" & """" & ",180,1,7," & """" & "(Incl.of all Taxes)" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 182,316," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & "(1+1) 2N" & """")
-
-                    Else
-                        FileSystem.PrintLine(fNum, "TEXT 182,288," & """" & "ROMAN.TTF" & """" & ",180,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
-                        FileSystem.PrintLine(fNum, "TEXT 103,288," & """" & "0" & """" & ",180,8,10," & """" & "SLEEVE" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 538,148," & """" & "0" & """" & ",180,11,20," & """" & "SIZE" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 475,148," & """" & "0" & """" & ",180,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
-                        FileSystem.PrintLine(fNum, "TEXT 426,149," & """" & "0" & """" & ",180,12,21," & """" & "cm" & """")
-                        If chkset.Checked = True Then
-                            FileSystem.PrintLine(fNum, "TEXT 538,202," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty 2N" & """")
-                        Else
-                            FileSystem.PrintLine(fNum, "TEXT 538,202," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty 1N" & """")
-                        End If
+                    FileSystem.PrintLine(fnum, "TEXT 538,202," & """" & "0" & """" & ",180,11,9," & """" & "Net Qty :1N" & """")
+                End If
 
                 FileSystem.PrintLine(fnum, "QRCODE 182,202,L,4,A,180,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
                 FileSystem.PrintLine(fnum, "TEXT 242,115," & """" & "0" & """" & ",180,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
-                FileSystem.PrintLine(fNum, "TEXT 267,131," & """" & "0" & """" & ",180,10,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
-                            FileSystem.PrintLine(fNum, "TEXT 352,131," & """" & "0" & """" & ",180,9,8," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
-                            FileSystem.PrintLine(fNum, "TEXT 346,199," & """" & "ROMAN.TTF" & """" & ",180,1,7," & """" & "(Incl.of all Taxes)" & """")
-                        End If
-                    End If
+                FileSystem.PrintLine(fnum, "TEXT 267,131," & """" & "0" & """" & ",180,10,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                FileSystem.PrintLine(fnum, "TEXT 352,131," & """" & "0" & """" & ",180,9,8," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+                FileSystem.PrintLine(fnum, "TEXT 346,199," & """" & "ROMAN.TTF" & """" & ",180,1,7," & """" & "(Incl.of all Taxes)" & """")
+                FileSystem.PrintLine(fnum, "TEXT 182,316," & """" & "0" & """" & ",180,8,9," & """" & Trim(dg.Rows(i).Cells(16).Value) & """")
+                FileSystem.PrintLine(fnum, "TEXT 538,174," & """" & "0" & """" & ",180,8,9," & """" & Trim(dg.Rows(i).Cells(17).Value) & """")
+            End If
+        End If
 
-               
+        If chkmfg.Checked = False Then
+            FileSystem.PrintLine(fnum, "TEXT 464,45," & """" & "0" & """" & ",180,8,7," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
+            FileSystem.PrintLine(fnum, "TEXT 444,23," & """" & "0" & """" & ",180,8,7," & """" & "address details are available in the box" & """")
+        End If
+        If mbarmsg = "Y" Then
 
-                If Chkshirt.Checked = True Then
-                    'fit
-                    FileSystem.PrintLine(fNum, "TEXT 182,316," & """" & "0" & """" & ",180,8,9," & """" & Trim(dg.Rows(i).Cells(16).Value) & """")
-                    FileSystem.PrintLine(fNum, "TEXT 538,174," & """" & "0" & """" & ",180,8,9," & """" & Trim(dg.Rows(i).Cells(17).Value) & """")
-                End If
+            FileSystem.PrintLine(fnum, "TEXT 543, 136," & """" & "0" & """" & ", 180, 7, 15," & """" & "_________________________________________________________" & """")
+            FileSystem.PrintLine(fnum, "TEXT 551, 99," & """" & "0" & """" & ", 180, 15, 18," & """" & "|" & """")
+            FileSystem.PrintLine(fnum, "TEXT 535, 86," & """" & "0" & """" & ", 180, 7, 10," & """" & "Consumer is free to open and inspect the product before buying it" & """")
+            FileSystem.PrintLine(fnum, "TEXT 543, 89," & """" & "0" & """" & ", 180, 7, 15," & """" & "_________________________________________________________" & """")
+            FileSystem.PrintLine(fnum, "TEXT 41, 99," & """" & "0" & """" & ", 180, 15, 18," & """" & "|" & """")
+        End If
 
-              
-                If chkmfg.Checked = False Then
-                    FileSystem.PrintLine(fNum, "TEXT 464,45," & """" & "0" & """" & ",180,8,7," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
-                    FileSystem.PrintLine(fNum, "TEXT 444,23," & """" & "0" & """" & ",180,8,7," & """" & "address details are available in the box" & """")
-                End If
-                If mbarmsg = "Y" Then
+        If mautoscan = "N" Then
+            FileSystem.PrintLine(fnum, "PRINT 1," & Val(dg.Rows(i).Cells(14).Value))
+        Else
+            FileSystem.PrintLine(fnum, "PRINT 1,1")
+        End If
 
-                        FileSystem.PrintLine(fNum, "TEXT 543, 136," & """" & "0" & """" & ", 180, 7, 15," & """" & "_________________________________________________________" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 551, 99," & """" & "0" & """" & ", 180, 15, 18," & """" & "|" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 535, 86," & """" & "0" & """" & ", 180, 7, 10," & """" & "Consumer Is free to open And inspect the product before buying it" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 543, 89," & """" & "0" & """" & ", 180, 7, 15," & """" & "_________________________________________________________" & """")
-                        FileSystem.PrintLine(fNum, "TEXT 41, 99," & """" & "0" & """" & ", 180, 15, 18," & """" & "|" & """")
-                  End If
+        If mcutenable = "Y" Then
+            FileSystem.PrintLine(fnum, "CUT")
+        Else
+            If mos = "WIN" Then
+                FileSystem.PrintLine(fnum, "<xpml></page></xpml><xpml><end/></xpml>")
+            End If
 
 
-        FileSystem.PrintLine(fNum, "PRINT 1,1")
 
-        If mos = "WIN" Then
-            FileSystem.PrintLine(fNum, "<xpml></page></xpml><xpml><end/></xpml>")
         End If
 
 
@@ -9095,6 +10055,397 @@ Public Class Frmmktbarcode
 
 
     End Sub
+
+    Private Sub speedprint2vertbothact()
+        Dim dirv, mdirv As String
+
+        'dir = System.Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+        'mdir = Trim(dir) & "\sbarcodE.txt"
+
+        dirv = System.AppDomain.CurrentDomain.BaseDirectory()
+        mdirv = Trim(dirv) & "nsbarcodEV.txt"
+
+
+
+        Dim fNum2 As Integer = FileSystem.FreeFile()
+        FileSystem.FileOpen(fNum2, mdirv, OpenMode.Output, OpenAccess.Write, OpenShare.Shared, -1)
+        'FileSystem.PrintLine(fNum, "This is a line with the Rupee symbol: ₹")
+        'FileSystem.FileClose(fNum)
+
+
+
+        'FileOpen(1, mdir, OpenMode.Output)
+        'End If
+        Dim rupeeSymbol As String = ChrW(&H20B9)
+        'Dim rupeeSymbol As String = ChrW(&H20B9)
+
+
+
+        For i As Integer = 0 To dg.Rows.Count - 1
+            Dim c As Boolean
+            c = dg.Rows(i).Cells(0).Value
+            If c = True Then
+                'PrintLine(1, TAB(0), DR.Item("firstdet"))
+
+                'If mos = "WIN" Then
+                '    FileSystem.PrintLine(fNum2, "<xpml><page quantity='0' pitch='45.0 mm'></xpml>SIZE 69.10 mm, 45 mm")
+                'Else
+
+                If mcutenable <> "Y" Then
+                    FileSystem.PrintLine(fNum2, "SIZE 69.10 mm, 45 mm")
+
+                    FileSystem.PrintLine(fNum2, "DIRECTION 0,0")
+                    FileSystem.PrintLine(fNum2, "REFERENCE 0,0")
+                    FileSystem.PrintLine(fNum2, "OFFSET 0 mm")
+                    FileSystem.PrintLine(fNum2, "SPEED 7")
+                    FileSystem.PrintLine(fNum2, "SET PEEL OFF")
+                    FileSystem.PrintLine(fNum2, "SET CUTTER OFF")
+                    FileSystem.PrintLine(fNum2, "SET PARTIAL_CUTTER OFF")
+                    'If mos = "WIN" Then
+                    '    FileSystem.PrintLine(fNum2, "<xpml></page></xpml><xpml><page quantity='3' pitch='45.0 mm'></xpml>SET TEAR ON")
+                    'End If
+                    FileSystem.PrintLine(fNum2, "SET TEAR ON")
+                Else
+                    FileSystem.PrintLine(fNum2, "SIZE 69.10 mm, 45 mm")
+                    FileSystem.PrintLine(fNum2, "GAP 3 mm,0 mm")
+                    FileSystem.PrintLine(fNum2, "DIRECTION 0,0")
+                    FileSystem.PrintLine(fNum2, "REFERENCE 0,0")
+                    FileSystem.PrintLine(fNum2, "OFFSET 0 mm")
+                    FileSystem.PrintLine(fNum2, "SPEED 7")
+                    FileSystem.PrintLine(fNum2, "SET CUTTER ON")
+                End If
+
+
+
+                FileSystem.PrintLine(fNum2, "CLS")
+
+
+
+                If Chkshirt.Checked = True Then
+
+                    FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,8,11," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+
+                    FileSystem.PrintLine(fNum2, "BITMAP 317,123,5,32,1,ÿÿÿ¿ÿþÿøÿðÿàÿÀÿ€ÿ ŽüŽøŽðŒà‡ŒÀ?€€À  ÿÀ ÿà  ÿð ÿøÿþ ?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿïŸÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+                    'PrintLine(1, TAB(0), "TEXT BITMAP 283,312,3,32,1,àÿð?ÿøÿüÿþÿÿÿÿÿÿÀÿÿàÿð?ÿøÿøÿ€þÿüÿø?ÿø?ÿø?ÿ€   ø?ÿøÿ€     ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+                    'FileSystem.PrintLine(fNum, "BITMAP 88,312,27,32,1,àÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿð?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ€ÿüÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÀþÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿà?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿðÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÀÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿüÿàÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþÿð?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþÿ€ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøþÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿð9üÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿàø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ Cø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ ø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ € ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿý   ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÀø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿàøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ € ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ   ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿü   ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+                    '"₹"
+                    'PrintBitmap()
+                    FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
+                    FileSystem.PrintLine(fNum2, "TEXT 315,15," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
+                    FileSystem.PrintLine(fNum2, TAB(0), "TEXT 355,15," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 355,158," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+
+                    FileSystem.PrintLine(fNum2, "TEXT 512,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 480,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 475,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 290,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 447,13," & """" & "ROMAN.TTF" & """" & ",90,1,10," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 447,80," & """" & "0" & """" & ",90,9,10," & """" & "SLEEVE" & """")
+                    If chkset.Checked = True Then
+                        FileSystem.PrintLine(fNum2, "TEXT 417,13," & """" & "0" & """" & ",90,7,7," & """" & "Net Qty : 2 N" & """")
+                    Else
+                        FileSystem.PrintLine(fNum2, "TEXT 417,13," & """" & "0" & """" & ",90,7,7," & """" & "Net Qty : 1 N" & """")
+                    End If
+
+
+                    FileSystem.PrintLine(fNum2, "TEXT 417,193," & """" & "0" & """" & ",90,11,20," & """" & "Size:" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 417,260," & """" & "0" & """" & ",90,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 419,310," & """" & "0" & """" & ",90,12,21," & """" & "cm" & """")
+
+                    FileSystem.PrintLine(fNum2, "QRCODE 313,243,L,4,A,90,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 293,212," & """" & "0" & """" & ",90,8,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 290,120," & """" & "0" & """" & ",90,10,9," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+
+                    If typeText <> "Dealer" And typeText <> "TN" Then
+                        FileSystem.PrintLine(fNum2, "TEXT 230,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    Else
+                        FileSystem.PrintLine(fNum2, "TEXT 230,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    End If
+
+                    If chkvertfit.Checked = True Then
+                        'fit
+                        FileSystem.PrintLine(fNum2, "TEXT 260,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(16).Value) & """")
+                        'cut
+                        FileSystem.PrintLine(fNum2, "TEXT 385,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(17).Value) & """")
+                    End If
+
+
+
+
+                    'If chkmfg.Checked = False Then
+                    '    FileSystem.PrintLine(fNum2, "TEXT 110,13," & """" & "0" & """" & ",90,7,9," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 85,70," & """" & "0" & """" & ",90,8,9," & """" & "address details are available" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 60,75," & """" & "0" & """" & ",90,8,9," & """" & "on the back side of the tag" & """")
+                    'End If
+
+
+                    'If mbarmsg = "Y" Then
+
+                    '    'FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 230, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 208, 10," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 194, 25," & """" & "0" & """" & ", 90, 8, 10," & """" & "Consumer is free to open and inspect" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 169, 60," & """" & "0" & """" & ", 90, 8, 10," & """" & "the product before buying it" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 159, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 208, 339," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+
+                    'End If
+
+                ElseIf chkpant.Checked = True Then
+
+                    FileSystem.PrintLine(fNum2, "BITMAP 320,117,5,32,1,ÿÿÿ¿ÿþÿøÿðÿàÿÀÿ€ÿ ŽüŽøŽðŒà‡ŒÀ?€€À  ÿÀ ÿà  ÿð ÿøÿþ ?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿïŸÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+
+                    FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
+                    FileSystem.PrintLine(fNum2, "TEXT 320,115," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
+                    FileSystem.PrintLine(fNum2, TAB(0), "TEXT 360,13," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 360,156," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 510,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 485,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 480,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 280,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 455,13," & """" & "ROMAN.TTF" & """" & ",90,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 455,85," & """" & "0" & """" & ",90,8,12," & """" & "LENGTH" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 420,13," & """" & "0" & """" & ",90,11,20," & """" & "Code :" & """")
+
+
+
+                    FileSystem.PrintLine(fNum2, "TEXT 418,95," & """" & "0" & """" & ",90,18,20," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 425,150," & """" & "0" & """" & ",90,12,21," & """" & "(Inch)" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 305,13," & """" & "0" & """" & ",90,7,8," & """" & "Net Qty :1N" & """")
+                    FileSystem.PrintLine(fNum2, "QRCODE 306,243,L,4,A,90,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                    'FileSystem.PrintLine(fNum2, "TEXT 275,122," & """" & "0" & """" & ",90,7,6," & """" & Trim(dg.Rows(i).Cells(7).Value) & """") 'mfg date
+                    FileSystem.PrintLine(fNum2, "TEXT 300,212," & """" & "0" & """" & ",90,8,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 300,122," & """" & "0" & """" & ",90,10,9," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+
+                    If typeText <> "Dealer" And typeText <> "TN" Then
+                        FileSystem.PrintLine(fNum2, "TEXT 249,13," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    Else
+                        FileSystem.PrintLine(fNum2, "TEXT 249,13," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    End If
+
+                    FileSystem.PrintLine(fNum2, "TEXT 450,240," & """" & "0" & """" & ",90,12,9," & """" & Trim(Math.Round(Val(dg.Rows(i).Cells(4).Value) * 2.54, 0)) & "cm" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 455,175," & """" & "0" & """" & ",90,11,11," & """" & "Size:" & """")
+
+
+                    'If chkmfg.Checked = False Then
+                    '    FileSystem.PrintLine(fNum2, "TEXT 110,13," & """" & "0" & """" & ",90,7,9," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 85,70," & """" & "0" & """" & ",90,8,9," & """" & "address details are available " & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
+                    'End If
+
+
+
+                    'If mbarmsg = "Y" Then
+
+
+                    '    ''FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 230, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 208, 10," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 194, 25," & """" & "0" & """" & ", 90, 8, 10," & """" & "Consumer is free to open and inspect" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 169, 60," & """" & "0" & """" & ", 90, 8, 10," & """" & "the product before buying it" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 159, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 208, 339," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+
+                    'End If
+
+
+
+
+                ElseIf chktwin.Checked = True Then
+
+                    FileSystem.PrintLine(fNum2, "BITMAP 317,123,5,32,1,ÿÿÿ¿ÿþÿøÿðÿàÿÀÿ€ÿ ŽüŽøŽðŒà‡ŒÀ?€€À  ÿÀ ÿà  ÿð ÿøÿþ ?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿïŸÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+
+                    FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
+                    FileSystem.PrintLine(fNum2, "TEXT 315,15," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
+                    FileSystem.PrintLine(fNum2, TAB(0), "TEXT 355,15," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 355,158," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 512,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 480,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 475,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 260,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 397,13," & """" & "ROMAN.TTF" & """" & ",90,1,11," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 397,85," & """" & "0" & """" & ",90,9,11," & """" & "SLEEVE" & """")
+
+                    FileSystem.PrintLine(fNum2, "TEXT 455,13," & """" & "0" & """" & ",90,11,20," & """" & "Size:" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 455,73," & """" & "0" & """" & ",90,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 452,123," & """" & "0" & """" & ",90,12,21," & """" & "cm" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 290,13," & """" & "0" & """" & ",90,7,8," & """" & "Net Qty :2N" & """")
+                    FileSystem.PrintLine(fNum2, "QRCODE 300,243,L,4,A,90,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                    'FileSystem.PrintLine(fNum2, "TEXT 270,122," & """" & "0" & """" & ",90,7,6," & """" & Trim(dg.Rows(i).Cells(7).Value) & """") 'mfg date
+                    FileSystem.PrintLine(fNum2, "TEXT 293,212," & """" & "0" & """" & ",90,8,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 290,120," & """" & "0" & """" & ",90,10,9," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+
+                    If typeText <> "Dealer" And typeText <> "TN" Then
+                        FileSystem.PrintLine(fNum2, "TEXT 230,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    Else
+                        FileSystem.PrintLine(fNum2, "TEXT 230,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    End If
+                    FileSystem.PrintLine(fNum2, "TEXT  483,220," & """" & "ROMAN.TTF" & """" & ",90,1,11," & """" & "(1+1) 2N" & """")
+
+
+                    'If chkmfg.Checked = False Then
+                    '    FileSystem.PrintLine(fNum2, "TEXT 110,13," & """" & "0" & """" & ",90,7,9," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 85,70," & """" & "0" & """" & ",90,8,9," & """" & "address details are available" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
+                    'End If
+
+                    'If mbarmsg = "Y" Then
+
+                    '    ''FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 230, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 208, 10," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 194, 25," & """" & "0" & """" & ", 90, 8, 10," & """" & "Consumer is free to open and inspect" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 169, 60," & """" & "0" & """" & ", 90, 8, 10," & """" & "the product before buying it" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 159, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 208, 339," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+
+                    'End If
+
+
+
+                Else
+                    FileSystem.PrintLine(fNum2, "TEXT 543,13," & """" & "0" & """" & ",90,8,11," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+
+                    FileSystem.PrintLine(fNum2, "BITMAP 317,123,5,32,1,ÿÿÿ¿ÿþÿøÿðÿàÿÀÿ€ÿ ŽüŽøŽðŒà‡ŒÀ?€€À  ÿÀ ÿà  ÿð ÿøÿþ ?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿïŸÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+                    'PrintLine(1, TAB(0), "TEXT BITMAP 283,312,3,32,1,àÿð?ÿøÿüÿþÿÿÿÿÿÿÀÿÿàÿð?ÿøÿøÿ€þÿüÿø?ÿø?ÿø?ÿ€   ø?ÿøÿ€     ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+                    'FileSystem.PrintLine(fNum, "BITMAP 88,312,27,32,1,àÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿð?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ€ÿüÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÀþÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿà?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿðÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÀÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿüÿàÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþÿð?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþÿ€ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿøþÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿð9üÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿàø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ Cø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ ø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ € ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿý   ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÀø?ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿàøÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ € ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿþ   ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿü   ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ")
+                    '"₹"
+                    'PrintBitmap()
+                    FileSystem.PrintLine(fNum2, TAB(0), "CODEPAGE 1252")
+                    FileSystem.PrintLine(fNum2, "TEXT 315,15," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
+                    FileSystem.PrintLine(fNum2, TAB(0), "TEXT 355,15," & """" & "0" & """" & ",90,18,17," & """" & "MRP " & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 355,158," & """" & "0" & """" & ",90,18,17," & """" & Microsoft.VisualBasic.Format(Val(dg.Rows(i).Cells(12).Value), "######.00") & """")
+                    'FileSystem.PrintLine(fNum2, "TEXT 483,13," & """" & "0" & """" & ",90,8,11," & """" & Trim(dg.Rows(i).Cells(2).Value) & """")
+                    'TEXT 538,258,"0",180,9,9,"COLOUR :9,10"
+                    FileSystem.PrintLine(fNum2, "TEXT 512,13," & """" & "0" & """" & ",90,8,9," & """" & "Colour :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 480,13," & """" & "0" & """" & ",90,8,9," & """" & "Commodity :" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 510,80," & """" & "ROMAN.TTF" & """" & ",90,1,8," & """" & Trim(dg.Rows(i).Cells(5).Value) & """")
+                    'FileSystem.PrintLine(fNum, "TEXT 300,8," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 475,120," & """" & "0" & """" & ",90,8,8," & """" & Trim(dg.Rows(i).Cells(6).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 290,13," & """" & "0" & """" & ",90,7,7," & """" & "Made in India" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 447,13," & """" & "ROMAN.TTF" & """" & ",90,1,10," & """" & Trim(dg.Rows(i).Cells(3).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 447,80," & """" & "0" & """" & ",90,9,10," & """" & "SLEEVE" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 417,13," & """" & "0" & """" & ",90,7,7," & """" & "Net Qty : 1 N" & """")
+
+                    FileSystem.PrintLine(fNum2, "TEXT 417,193," & """" & "0" & """" & ",90,11,20," & """" & "Size:" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 417,260," & """" & "0" & """" & ",90,18,21," & """" & Trim(dg.Rows(i).Cells(4).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 419,310," & """" & "0" & """" & ",90,12,21," & """" & "cm" & """")
+
+                    FileSystem.PrintLine(fNum2, "QRCODE 313,243,L,4,A,90,M2,S7," & """" & Trim(dg.Rows(i).Cells(9).Value) & """")
+                    'FileSystem.PrintLine(fNum2, "TEXT 295,122," & """" & "0" & """" & ",90,7,6," & """" & Trim(dg.Rows(i).Cells(7).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 293,212," & """" & "0" & """" & ",90,8,9," & """" & Trim(dg.Rows(i).Cells(8).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 290,120," & """" & "0" & """" & ",90,10,9," & """" & Trim(dg.Rows(i).Cells(1).Value) & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 505,115," & """" & "ROMAN.TTF" & """" & ",90,1,7," & """" & "(Incl.of all Taxes)" & """")
+
+                    'typeText = Trim(cmbtype.Text)
+
+                    ' If Trim(cmbtype.Text) <> "Dealer" And Trim(cmbtype.Text) <> "TN" Then
+                    If typeText <> "Dealer" And typeText <> "TN" Then
+                        FileSystem.PrintLine(fNum2, "TEXT 230,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    Else
+                        FileSystem.PrintLine(fNum2, "TEXT 230,12," & """" & "0" & """" & ",90,9,7," & """" & Trim(dg.Rows(i).Cells(10).Value) & """")
+                    End If
+
+                    If chkvertfit.Checked = True Then
+                        'fit
+                        FileSystem.PrintLine(fNum2, "TEXT 260,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(16).Value) & """")
+                        'cut
+                        FileSystem.PrintLine(fNum2, "TEXT 385,13," & """" & "0" & """" & ",90,9,10," & """" & Trim(dg.Rows(i).Cells(17).Value) & """")
+                    End If
+
+
+
+
+                    'If chkmfg.Checked = False Then
+                    '    FileSystem.PrintLine(fNum2, "TEXT 110,13," & """" & "0" & """" & ",90,7,9," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 85,70," & """" & "0" & """" & ",90,8,9," & """" & "address details are available" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 60,75," & """" & "0" & """" & ",90,8,9," & """" & "on the back side of the tag" & """")
+                    'End If
+
+
+                    'If mbarmsg = "Y" Then
+
+                    '    'FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 230, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 208, 10," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 194, 25," & """" & "0" & """" & ", 90, 8, 10," & """" & "Consumer is free to open and inspect" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 169, 60," & """" & "0" & """" & ", 90, 8, 10," & """" & "the product before buying it" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 159, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                    '    FileSystem.PrintLine(fNum2, "TEXT 208, 339," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+
+                    'End If
+                End If
+
+
+
+                If chkmfg.Checked = False Then
+                    FileSystem.PrintLine(fNum2, "TEXT 110,13," & """" & "0" & """" & ",90,7,9," & """" & "* Manufacturer,Marketer & Consumer Care" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 85,70," & """" & "0" & """" & ",90,8,9," & """" & "address details are available" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 60,75," & """" & "0" & """" & ",90,8,9," & """" & "on the back side of the tag" & """")
+                End If
+
+
+                If mbarmsg = "Y" Then
+
+                    'FileSystem.PrintLine(fNum2, "TEXT 60, 75," & """" & "0" & """" & ", 90, 8, 9," & """" & "on the back side of the tag" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 230, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 208, 10," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 194, 25," & """" & "0" & """" & ", 90, 8, 10," & """" & "Consumer is free to open and inspect" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 169, 60," & """" & "0" & """" & ", 90, 8, 10," & """" & "the product before buying it" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 159, 13," & """" & "0" & """" & ", 90, 7, 9," & """" & "_____________________________________" & """")
+                    FileSystem.PrintLine(fNum2, "TEXT 208, 339," & """" & "0" & """" & ", 90, 7, 26," & """" & "|" & """")
+
+                End If
+
+
+                If mautoscan = "N" Then
+                    FileSystem.PrintLine(fNum2, "PRINT 1," & Val(dg.Rows(i).Cells(14).Value))
+                Else
+                    FileSystem.PrintLine(fNum2, "PRINT 1,1")
+                End If
+                If mcutenable <> "Y" Then
+
+                    FileSystem.PrintLine(fNum2, "<xpml></page></xpml><xpml><end/></xpml>")
+                Else
+                    FileSystem.PrintLine(fNum2, "CUT")
+                End If
+
+
+
+                dg.Rows(i).Cells(0).Value = False
+            End If
+        Next
+        FileSystem.FileClose(fNum2)
+        'FileClose(1)
+
+
+        If mos = "WIN" Then
+            If mcitrix = "Y" Then
+
+                'citrixprint(mdir)
+                citrixprint2(mdirv, cmbvprinter.SelectedItem.ToString())
+            Else
+                Shell("rawprv.bat " & mdirv)
+            End If
+
+        Else
+            Dim printer As String = tscprinter2
+            Dim filePath As String = mlinpath
+            Dim filePathname As String = mlinpath & "nsbarcodEV.txt"
+            PrintTscRaw(printer, filePathname)
+
+        End If
+
+
+
+
+    End Sub
+
 
 
     '    Dim bitmapData As String = File.ReadAllText("logo.txt", Encoding.GetEncoding(28591))

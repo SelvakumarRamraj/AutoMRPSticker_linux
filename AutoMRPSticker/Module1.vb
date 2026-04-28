@@ -78,6 +78,7 @@ Module Module1
     Public mxlfilepath As String
     Public mbarmsg As String
     Public mautoscan As String
+    Public mcutenable As String
     '<STAThread()>
     Sub main()
         mdbserver = System.Configuration.ConfigurationSettings.AppSettings("myservername")
@@ -130,6 +131,8 @@ Module Module1
         mxlfilepath = Trim(ConfigurationSettings.AppSettings("XLfilepath"))
         mbarmsg = ConfigurationSettings.AppSettings("barmsg")
         mautoscan = ConfigurationSettings.AppSettings("auto")
+        mcutenable = ConfigurationSettings.AppSettings("CutterEnable")
+
 
         Application.EnableVisualStyles()
         Application.SetCompatibleTextRenderingDefault(False)
